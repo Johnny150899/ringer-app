@@ -47,7 +47,7 @@ class _MainNavigationState extends State<MainNavigation> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ringer App'),
+        //title: const Text('Ringer App'),
       ),
       body: _screens[_selectedIndex],
       bottomNavigationBar: NavigationBar(
