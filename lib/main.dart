@@ -97,7 +97,12 @@ class _MainNavigationState extends State<MainNavigation> {
             child: Column(
               children: [
                 const _AppHeader(),
-                Expanded(child: _screens[_selectedIndex]),
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: _screens,
+                  ),
+                ),
               ],
             ),
           ),
