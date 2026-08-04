@@ -5,9 +5,16 @@ import '../constants/club_logos.dart';
 import '../services/ligadb_service.dart';
 
 class MatchDetailScreen extends StatefulWidget {
-  const MatchDetailScreen({super.key, required this.match});
+  const MatchDetailScreen({
+    super.key,
+    required this.match,
+    this.singleMatchesOverride,
+    this.venueOverride,
+  });
 
   final Map<String, dynamic> match;
+  final List<dynamic>? singleMatchesOverride;
+  final Map<String, dynamic>? venueOverride;
 
   @override
   State<MatchDetailScreen> createState() => _MatchDetailScreenState();
@@ -22,10 +29,12 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
   void initState() {
     super.initState();
     _service = LigaDbService();
-    _singleMatches = _service.getSingleMatches(
-      _asInt(widget.match['BegegnungsID']) ?? 0,
-    );
-    _venue = _service.getVenueForMatch(widget.match);
+    _singleMatches = widget.singleMatchesOverride != null
+        ? Future.value(widget.singleMatchesOverride)
+        : _service.getSingleMatches(_asInt(widget.match['BegegnungsID']) ?? 0);
+    _venue = widget.venueOverride != null
+        ? Future.value(widget.venueOverride)
+        : _service.getVenueForMatch(widget.match);
   }
 
   @override
@@ -171,7 +180,6 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                         venue['address'],
                         fallback: 'Ort nicht hinterlegt',
                       ),
-                      isExactAddress: venue['isExactAddress'] == true,
                       onOpenMaps: () => _openGoogleMaps(venue),
                     );
                   },
@@ -225,19 +233,17 @@ class _VenueCard extends StatelessWidget {
   const _VenueCard({
     required this.venueName,
     required this.address,
-    required this.isExactAddress,
     required this.onOpenMaps,
   });
 
   final String venueName;
   final String address;
-  final bool isExactAddress;
   final VoidCallback onOpenMaps;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFF061E39).withValues(alpha: .88),
         borderRadius: BorderRadius.circular(16),
@@ -246,13 +252,17 @@ class _VenueCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.location_on_rounded, color: Colors.white),
+            child: const Icon(
+              Icons.location_on_rounded,
+              size: 20,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -260,43 +270,38 @@ class _VenueCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isExactAddress
-                      ? 'WETTKAMPFSTÄTTE LAUT LIGADB'
-                      : 'AUSTRAGUNGSORT LAUT LIGADB',
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
                   venueName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 Text(
                   address,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: Colors.white60, fontSize: 10),
                 ),
               ],
             ),
           ),
-          IconButton.filled(
+          FilledButton.icon(
             onPressed: onOpenMaps,
-            tooltip: 'In Google Maps öffnen',
-            style: IconButton.styleFrom(
+            style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFE4003A),
               foregroundColor: Colors.white,
-              minimumSize: const Size(40, 40),
-              padding: const EdgeInsets.all(9),
+              minimumSize: const Size(0, 34),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+              visualDensity: VisualDensity.compact,
             ),
-            icon: const Icon(Icons.map_rounded),
+            icon: const Icon(Icons.directions_rounded, size: 16),
+            label: const Text(
+              'Route',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),
@@ -474,61 +479,84 @@ class _SingleMatchCard extends StatelessWidget {
   final String result;
   final String duration;
 
+  double? _pointValue(String value) {
+    return double.tryParse(value.replaceAll(',', '.'));
+  }
+
+  Color _nameColor({required bool home}) {
+    final homeValue = _pointValue(homePoints);
+    final guestValue = _pointValue(guestPoints);
+    if (homeValue == null || guestValue == null || homeValue == guestValue) {
+      return const Color(0xFF101828);
+    }
+    if (home && homeValue > guestValue) return const Color(0xFFE4003A);
+    if (!home && guestValue > homeValue) return const Color(0xFF1565C0);
+    return const Color(0xFF101828);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(11, 8, 11, 9),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: .96),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
           Row(
             children: [
               _InfoChip(label: weight),
-              const SizedBox(width: 7),
+              const SizedBox(width: 5),
               _InfoChip(label: style, secondary: true),
               const Spacer(),
               Text(
                 result,
                 style: const TextStyle(
                   color: Color(0xFFE4003A),
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 7),
           Row(
             children: [
               Expanded(
                 child: Text(
                   homeName,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: _nameColor(home: true),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               _Points(home: homePoints, guest: guestPoints),
               Expanded(
                 child: Text(
                   guestName,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: _nameColor(home: false),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
           if (duration != '–') ...[
-            const SizedBox(height: 9),
+            const SizedBox(height: 5),
             Text(
               duration,
-              style: const TextStyle(color: Color(0xFF667085), fontSize: 11),
+              style: const TextStyle(color: Color(0xFF667085), fontSize: 10),
             ),
           ],
         ],
@@ -546,17 +574,17 @@ class _Points extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: const Color(0xFF061E39),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9),
       ),
       child: Text(
         '$home : $guest',
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: FontWeight.w900,
         ),
       ),

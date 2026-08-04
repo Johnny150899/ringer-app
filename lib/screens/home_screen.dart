@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/club_logos.dart';
@@ -5,13 +6,28 @@ import '../services/ligadb_service.dart';
 import 'match_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.matchesOverride, this.nowOverride});
+
+  final List<dynamic>? matchesOverride;
+  final DateTime? nowOverride;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const Map<String, dynamic> _resultTestMatch = {
+    'BegegnungsID': 78926,
+    'KampftagIst': '2025-09-13T00:00:00',
+    'Beginn': '20:00',
+    'HeimMannschaft': 'ASV Bruchsal',
+    'GastMannschaft': 'KSC Olympia Graben-Neudorf',
+    'HeimOrganisationsID': 163,
+    'GastOrganisationsID': 165,
+    'PunkteHeimWertung': 12,
+    'PunkteGastWertung': 19,
+  };
+
   static final RegExp _multipleSpaces = RegExp(r'\s+');
 
   static const Map<String, String> _shortTeamNames = {
@@ -30,12 +46,18 @@ class _HomeScreenState extends State<HomeScreen> {
   late final LigaDbService _service;
   late final List<Future<List<dynamic>>?> _teamMatches;
   int _selectedTeam = 0;
+  bool _showPastMatchPreview = false;
 
   @override
   void initState() {
     super.initState();
     _service = LigaDbService();
-    _teamMatches = [_service.getFirstTeamMatches(), null];
+    _teamMatches = widget.matchesOverride == null
+        ? [_service.getFirstTeamMatches(), null]
+        : [
+            Future.value(widget.matchesOverride),
+            Future.value(widget.matchesOverride),
+          ];
   }
 
   void _selectTeam(int index) {
@@ -97,6 +119,42 @@ class _HomeScreenState extends State<HomeScreen> {
     return _text(match['Beginn'], fallback: 'Uhrzeit folgt');
   }
 
+  DateTime? _matchStart(dynamic match) {
+    final rawDate = match['KampftagIst'] ?? match['KampfTagIst'];
+    final date = DateTime.tryParse(rawDate?.toString() ?? '');
+    if (date == null) return null;
+
+    final timeParts = _text(match['Beginn'], fallback: '00:00').split(':');
+    final hour = int.tryParse(timeParts.first) ?? 0;
+    final minute = timeParts.length > 1 ? int.tryParse(timeParts[1]) ?? 0 : 0;
+    return DateTime(date.year, date.month, date.day, hour, minute);
+  }
+
+  bool _isPast(dynamic match, DateTime now) {
+    final start = _matchStart(match);
+    return start != null && start.add(const Duration(hours: 3)).isBefore(now);
+  }
+
+  String _score(dynamic value) {
+    final number = value is num ? value : num.tryParse(value?.toString() ?? '');
+    if (number == null) return '–';
+    return number % 1 == 0 ? number.toInt().toString() : number.toString();
+  }
+
+  String _result(dynamic match) {
+    return '${_score(match['PunkteHeimWertung'])} : '
+        '${_score(match['PunkteGastWertung'])}';
+  }
+
+  ButtonStyle _debugButtonStyle() {
+    return OutlinedButton.styleFrom(
+      foregroundColor: Colors.white,
+      side: const BorderSide(color: Colors.white38),
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    );
+  }
+
   String _homeLogo(dynamic match) {
     final name = _homeName(match);
     return ClubLogos.forClub(
@@ -133,6 +191,54 @@ class _HomeScreenState extends State<HomeScreen> {
             onSelected: _selectTeam,
           ),
         ),
+        if (kDebugMode)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 7, 16, 0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 6,
+                runSpacing: 5,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        _openMatchDetails(context, _resultTestMatch),
+                    style: _debugButtonStyle(),
+                    icon: const Icon(Icons.science_outlined, size: 16),
+                    label: const Text(
+                      'Einzelkämpfe',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => setState(
+                      () => _showPastMatchPreview = !_showPastMatchPreview,
+                    ),
+                    style: _debugButtonStyle(),
+                    icon: Icon(
+                      _showPastMatchPreview
+                          ? Icons.visibility_off_outlined
+                          : Icons.history_rounded,
+                      size: 16,
+                    ),
+                    label: Text(
+                      _showPastMatchPreview
+                          ? 'Ergebnis ausblenden'
+                          : 'Letztes Ergebnis testen',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         Expanded(
           child: FutureBuilder<List<dynamic>>(
             future: _teamMatches[_selectedTeam]!,
@@ -152,7 +258,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
 
-              final matches = snapshot.data ?? [];
+              final matches = <dynamic>[
+                ...?snapshot.data,
+                if (_showPastMatchPreview &&
+                    !(snapshot.data ?? []).any(
+                      (match) => match['BegegnungsID'] == 78926,
+                    ))
+                  _resultTestMatch,
+              ];
               if (matches.isEmpty) {
                 return const _StatusView(
                   icon: Icons.event_busy_rounded,
@@ -160,7 +273,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
 
-              final nextMatch = matches.first;
+              final now = widget.nowOverride ?? DateTime.now();
+              final upcomingMatches =
+                  matches.where((match) => !_isPast(match, now)).toList()
+                    ..sort((a, b) {
+                      final aDate = _matchStart(a);
+                      final bDate = _matchStart(b);
+                      if (aDate == null) return 1;
+                      if (bDate == null) return -1;
+                      return aDate.compareTo(bDate);
+                    });
+              final pastMatches =
+                  matches.where((match) => _isPast(match, now)).toList()
+                    ..sort((a, b) {
+                      final aDate = _matchStart(a);
+                      final bDate = _matchStart(b);
+                      if (aDate == null) return 1;
+                      if (bDate == null) return -1;
+                      return bDate.compareTo(aDate);
+                    });
+              final nextMatch = upcomingMatches.isEmpty
+                  ? null
+                  : upcomingMatches.first;
 
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 96),
@@ -169,35 +303,61 @@ class _HomeScreenState extends State<HomeScreen> {
                     'Alle Termine des KSC Olympia auf einen Blick.',
                     style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
-                  const SizedBox(height: 18),
-                  const _SectionTitle(title: 'Nächster Kampf'),
-                  const SizedBox(height: 12),
-                  _FeaturedMatchCard(
-                    homeName: _shortName(_homeName(nextMatch)),
-                    guestName: _shortName(_guestName(nextMatch)),
-                    homeLogo: _homeLogo(nextMatch),
-                    guestLogo: _guestLogo(nextMatch),
-                    date: _date(nextMatch),
-                    time: _time(nextMatch),
-                    onTap: () => _openMatchDetails(context, nextMatch),
-                  ),
-                  const SizedBox(height: 28),
-                  const _SectionTitle(title: 'Kommende Kämpfe'),
-                  const SizedBox(height: 12),
-                  ...matches
-                      .skip(1)
-                      .take(5)
-                      .map(
-                        (match) => _MatchCard(
-                          homeName: _shortName(_homeName(match)),
-                          guestName: _shortName(_guestName(match)),
-                          homeLogo: _homeLogo(match),
-                          guestLogo: _guestLogo(match),
-                          date: _date(match),
-                          time: _time(match),
-                          onTap: () => _openMatchDetails(context, match),
+                  if (nextMatch != null) ...[
+                    const SizedBox(height: 18),
+                    const _SectionTitle(title: 'Nächster Kampf'),
+                    const SizedBox(height: 12),
+                    _FeaturedMatchCard(
+                      homeName: _shortName(_homeName(nextMatch)),
+                      guestName: _shortName(_guestName(nextMatch)),
+                      homeLogo: _homeLogo(nextMatch),
+                      guestLogo: _guestLogo(nextMatch),
+                      date: _date(nextMatch),
+                      time: _time(nextMatch),
+                      onTap: () => _openMatchDetails(context, nextMatch),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 18),
+                    const _NoUpcomingMatches(),
+                  ],
+                  if (upcomingMatches.length > 1) ...[
+                    const SizedBox(height: 28),
+                    const _SectionTitle(title: 'Kommende Kämpfe'),
+                    const SizedBox(height: 12),
+                    ...upcomingMatches
+                        .skip(1)
+                        .take(5)
+                        .map(
+                          (match) => _MatchCard(
+                            homeName: _shortName(_homeName(match)),
+                            guestName: _shortName(_guestName(match)),
+                            homeLogo: _homeLogo(match),
+                            guestLogo: _guestLogo(match),
+                            date: _date(match),
+                            time: _time(match),
+                            onTap: () => _openMatchDetails(context, match),
+                          ),
                         ),
-                      ),
+                  ],
+                  if (pastMatches.isNotEmpty) ...[
+                    const SizedBox(height: 28),
+                    const _SectionTitle(title: 'Letzte Ergebnisse'),
+                    const SizedBox(height: 12),
+                    ...pastMatches
+                        .take(5)
+                        .map(
+                          (match) => _MatchCard(
+                            homeName: _shortName(_homeName(match)),
+                            guestName: _shortName(_guestName(match)),
+                            homeLogo: _homeLogo(match),
+                            guestLogo: _guestLogo(match),
+                            date: _date(match),
+                            time: _time(match),
+                            result: _result(match),
+                            onTap: () => _openMatchDetails(context, match),
+                          ),
+                        ),
+                  ],
                 ],
               );
             },
@@ -362,6 +522,7 @@ class _MatchCard extends StatelessWidget {
     required this.date,
     required this.time,
     required this.onTap,
+    this.result,
   });
 
   final String homeName;
@@ -371,6 +532,7 @@ class _MatchCard extends StatelessWidget {
   final String date;
   final String time;
   final VoidCallback onTap;
+  final String? result;
 
   @override
   Widget build(BuildContext context) {
@@ -395,6 +557,7 @@ class _MatchCard extends StatelessWidget {
                   guestName: guestName,
                   homeLogo: homeLogo,
                   guestLogo: guestLogo,
+                  result: result,
                 ),
                 const SizedBox(height: 12),
                 const Divider(height: 1, color: Color(0xFFE4E7EC)),
@@ -416,6 +579,7 @@ class _TeamsRow extends StatelessWidget {
     required this.homeLogo,
     required this.guestLogo,
     this.featured = false,
+    this.result,
   });
 
   final String homeName;
@@ -423,6 +587,7 @@ class _TeamsRow extends StatelessWidget {
   final String homeLogo;
   final String guestLogo;
   final bool featured;
+  final String? result;
 
   @override
   Widget build(BuildContext context) {
@@ -440,15 +605,15 @@ class _TeamsRow extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Container(
-            width: featured ? 42 : 36,
+            width: result == null ? (featured ? 42 : 36) : 58,
             height: featured ? 42 : 36,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Color(0xFF061E39),
-              shape: BoxShape.circle,
+            decoration: BoxDecoration(
+              color: const Color(0xFF061E39),
+              borderRadius: BorderRadius.circular(99),
             ),
             child: Text(
-              'VS',
+              result ?? 'VS',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: featured ? 12 : 10,
@@ -586,6 +751,37 @@ class _ScheduleItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NoUpcomingMatches extends StatelessWidget {
+  const _NoUpcomingMatches();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.event_available_rounded, color: Colors.white),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Aktuell ist kein weiterer Kampf geplant.',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
