@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../models/single_match.dart';
+import '../models/team_match.dart';
+
 class LigaDbService {
   LigaDbService({http.Client? client})
     : _client = client ?? http.Client(),
@@ -13,7 +16,7 @@ class LigaDbService {
   final http.Client _client;
   final bool _ownsClient;
 
-  Future<List<dynamic>> getMatchesForTeam({
+  Future<List<TeamMatch>> getMatchesForTeam({
     required int saisonLigaId,
     required int mannschaftenId,
   }) async {
@@ -24,13 +27,16 @@ class LigaDbService {
     final response = await _client.get(url).timeout(requestTimeout);
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body) as List<dynamic>;
+      return decoded
+          .map((item) => TeamMatch.fromJson(Map<String, dynamic>.from(item)))
+          .toList(growable: false);
     } else {
       throw Exception('Fehler beim Laden der Kämpfe');
     }
   }
 
-  Future<List<dynamic>> getAllKscMatches() async {
+  Future<List<TeamMatch>> getAllKscMatches() async {
     final results = await Future.wait([
       getFirstTeamMatches(),
       getSecondTeamMatches(),
@@ -39,20 +45,23 @@ class LigaDbService {
     return [...results[0], ...results[1]];
   }
 
-  Future<List<dynamic>> getFirstTeamMatches() {
+  Future<List<TeamMatch>> getFirstTeamMatches() {
     return getMatchesForTeam(saisonLigaId: 1227, mannschaftenId: 13215);
   }
 
-  Future<List<dynamic>> getSecondTeamMatches() {
+  Future<List<TeamMatch>> getSecondTeamMatches() {
     return getMatchesForTeam(saisonLigaId: 1225, mannschaftenId: 13518);
   }
 
-  Future<List<dynamic>> getSingleMatches(int begegnungsId) async {
+  Future<List<SingleMatch>> getSingleMatches(int begegnungsId) async {
     final url = Uri.parse('$baseUrl/SingleMatches?begegnungsID=$begegnungsId');
     final response = await _client.get(url).timeout(requestTimeout);
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body) as List<dynamic>;
+      return decoded
+          .map((item) => SingleMatch.fromJson(Map<String, dynamic>.from(item)))
+          .toList(growable: false);
     }
     throw Exception('Fehler beim Laden der Einzelkämpfe');
   }

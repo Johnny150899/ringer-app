@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../constants/club_logos.dart';
-import '../services/ligadb_service.dart';
+import '../../../../core/constants/club_logos.dart';
+import '../../data/ligadb_service.dart';
+import '../../models/team_match.dart';
 import 'match_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -172,10 +173,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openMatchDetails(BuildContext context, dynamic match) {
+    final matchData = match is TeamMatch
+        ? match.toJson()
+        : Map<String, dynamic>.from(match as Map);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            MatchDetailScreen(match: Map<String, dynamic>.from(match as Map)),
+        builder: (_) => MatchDetailScreen(match: matchData),
       ),
     );
   }

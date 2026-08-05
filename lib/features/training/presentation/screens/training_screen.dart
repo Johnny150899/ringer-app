@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../widgets/feature_placeholder.dart';
+import '../../../../core/widgets/feature_placeholder.dart';
 
 class TrainingScreen extends StatelessWidget {
   const TrainingScreen({super.key});

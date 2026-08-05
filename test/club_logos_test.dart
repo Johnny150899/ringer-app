@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ringer_app/constants/club_logos.dart';
+import 'package:ringer_app/core/constants/club_logos.dart';
 
 void main() {
   test('finds logos by LigaDB organisation ID', () {

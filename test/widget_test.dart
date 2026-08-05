@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ringer_app/main.dart';
-import 'package:ringer_app/screens/home_screen.dart';
-import 'package:ringer_app/screens/match_detail_screen.dart';
+import 'package:ringer_app/features/matches/presentation/screens/home_screen.dart';
+import 'package:ringer_app/features/matches/presentation/screens/match_detail_screen.dart';
 
 void main() {
   testWidgets('main navigation displays all destinations', (tester) async {
