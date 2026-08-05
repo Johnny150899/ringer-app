@@ -1,6 +1,6 @@
 # Ringer-App – nächste Schritte
 
-Stand: 4. August 2026
+Stand: 5. August 2026
 
 ## Als Nächstes
 
@@ -31,7 +31,17 @@ Stand: 4. August 2026
 
 ## Vor Veröffentlichung
 
+- [ ] Push-Benachrichtigungen für Trainingserinnerungen, Terminänderungen,
+      Trainingsausfälle und wichtige Vereinsmeldungen einrichten.
+- [ ] Dafür Firebase Cloud Messaging für Android sowie APNs für iOS anbinden,
+      Geräte-Tokens sicher in Supabase speichern und Benachrichtigungsrechte
+      sowie Abmelde-/Einstellungsmöglichkeiten in der App ergänzen.
 - [ ] App-Name, Paket-ID, App-Icon und Splash-Screen finalisieren.
+- [ ] Vor der öffentlichen Registrierung den Supabase-Mailversand auf die
+      Vereinsadresse umstellen: eigenes SMTP, Absendername des Vereins,
+      deutsche gebrandete Auth-E-Mail-Vorlagen und App-Deep-Link einrichten.
+- [ ] Für die Absenderdomain SPF, DKIM und DMARC konfigurieren und Zustellung
+      sowie Spam-Einstufung der Bestätigungs- und Passwort-E-Mails testen.
 - [ ] Android-Internetberechtigung auch für Release-Builds kontrollieren.
 - [ ] Datenschutz, Impressum und benötigte Einwilligungen klären.
 - [ ] Auf kleinen und großen Android-Geräten testen.

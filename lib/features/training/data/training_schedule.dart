@@ -1,0 +1,66 @@
+import '../models/training_session.dart';
+
+abstract final class TrainingSchedule {
+  static const sessions = <TrainingSession>[
+    TrainingSession(
+      weekday: DateTime.monday,
+      startHour: 16,
+      startMinute: 0,
+      endHour: 17,
+      endMinute: 0,
+      group: 'Bambinis',
+      locationName: 'KSC Trainingshalle',
+      locationQuery: 'KSC Olympia Graben-Neudorf',
+    ),
+    TrainingSession(
+      weekday: DateTime.monday,
+      startHour: 17,
+      startMinute: 0,
+      endHour: 19,
+      endMinute: 0,
+      group: 'Jugend',
+      locationName: 'KSC Trainingshalle',
+      locationQuery: 'KSC Olympia Graben-Neudorf',
+    ),
+    TrainingSession(
+      weekday: DateTime.tuesday,
+      startHour: 18,
+      startMinute: 0,
+      endHour: 20,
+      endMinute: 0,
+      group: 'Männer',
+      locationName: 'KSC Trainingshalle',
+      locationQuery: 'KSC Olympia Graben-Neudorf',
+    ),
+    TrainingSession(
+      weekday: DateTime.wednesday,
+      startHour: 16,
+      startMinute: 0,
+      endHour: 17,
+      endMinute: 0,
+      group: 'Bambinis',
+      locationName: 'KSC Trainingshalle',
+      locationQuery: 'KSC Olympia Graben-Neudorf',
+    ),
+    TrainingSession(
+      weekday: DateTime.wednesday,
+      startHour: 17,
+      startMinute: 0,
+      endHour: 19,
+      endMinute: 0,
+      group: 'Jugend',
+      locationName: 'KSC Trainingshalle',
+      locationQuery: 'KSC Olympia Graben-Neudorf',
+    ),
+    TrainingSession(
+      weekday: DateTime.thursday,
+      startHour: 18,
+      startMinute: 0,
+      endHour: 20,
+      endMinute: 0,
+      group: 'Männer',
+      locationName: 'KSC Trainingshalle',
+      locationQuery: 'KSC Olympia Graben-Neudorf',
+    ),
+  ];
+}

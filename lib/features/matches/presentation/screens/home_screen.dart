@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/club_logos.dart';
 import '../../data/ligadb_service.dart';
@@ -7,10 +8,18 @@ import '../../models/team_match.dart';
 import 'match_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.matchesOverride, this.nowOverride});
+  const HomeScreen({
+    super.key,
+    this.matchesOverride,
+    this.nowOverride,
+    this.supabaseClient,
+    this.canManageAnnouncements = false,
+  });
 
   final List<dynamic>? matchesOverride;
   final DateTime? nowOverride;
+  final SupabaseClient? supabaseClient;
+  final bool canManageAnnouncements;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -48,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final List<Future<List<dynamic>>?> _teamMatches;
   int _selectedTeam = 0;
   bool _showPastMatchPreview = false;
+  Map<String, dynamic>? _announcement;
 
   @override
   void initState() {
@@ -59,6 +69,175 @@ class _HomeScreenState extends State<HomeScreen> {
             Future.value(widget.matchesOverride),
             Future.value(widget.matchesOverride),
           ];
+    _loadAnnouncement();
+  }
+
+  Future<void> _loadAnnouncement() async {
+    final client = widget.supabaseClient;
+    if (client == null) return;
+    try {
+      final row = await client
+          .from('club_announcements')
+          .select('id, title, message, expires_at')
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (mounted) setState(() => _announcement = row);
+    } on PostgrestException {
+      // Die Home-Seite bleibt bis zur Migration ohne Meldung nutzbar.
+    }
+  }
+
+  Future<void> _manageAnnouncement() async {
+    final titleController = TextEditingController(
+      text: _announcement?['title'] as String? ?? '',
+    );
+    final messageController = TextEditingController(
+      text: _announcement?['message'] as String? ?? '',
+    );
+    final currentExpiry = DateTime.tryParse(
+      _announcement?['expires_at'] as String? ?? '',
+    );
+    final remainingDays = currentExpiry
+        ?.difference(DateTime.now())
+        .inHours
+        .clamp(1, 24 * 30);
+    int? durationDays = currentExpiry == null
+        ? 14
+        : remainingDays! <= 24
+        ? 1
+        : remainingDays <= 72
+        ? 3
+        : remainingDays <= 168
+        ? 7
+        : remainingDays <= 336
+        ? 14
+        : 30;
+    final formKey = GlobalKey<FormState>();
+    final action = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          icon: const Icon(Icons.campaign_rounded, color: Color(0xFFE90046)),
+          title: Text(
+            _announcement == null ? 'Vereinsmeldung' : 'Meldung bearbeiten',
+          ),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: titleController,
+                  maxLength: 80,
+                  decoration: const InputDecoration(labelText: 'Überschrift'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Bitte eine Überschrift eingeben.'
+                      : null,
+                ),
+                TextFormField(
+                  controller: messageController,
+                  maxLength: 500,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Mitteilung'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Bitte eine Mitteilung eingeben.'
+                      : null,
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int?>(
+                  initialValue: durationDays,
+                  decoration: const InputDecoration(
+                    labelText: 'Wie lange anzeigen?',
+                    prefixIcon: Icon(Icons.schedule_rounded),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 1, child: Text('1 Tag')),
+                    DropdownMenuItem(value: 3, child: Text('3 Tage')),
+                    DropdownMenuItem(value: 7, child: Text('7 Tage')),
+                    DropdownMenuItem(value: 14, child: Text('14 Tage')),
+                    DropdownMenuItem(value: 30, child: Text('30 Tage')),
+                    DropdownMenuItem(value: null, child: Text('Ohne Ablauf')),
+                  ],
+                  onChanged: (value) =>
+                      setDialogState(() => durationDays = value),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            if (_announcement != null)
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, 'delete'),
+                child: const Text('Löschen'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.pop(dialogContext, 'save');
+                }
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) {
+      titleController.dispose();
+      messageController.dispose();
+      return;
+    }
+    try {
+      final client = widget.supabaseClient!;
+      if (action == 'delete') {
+        await client
+            .from('club_announcements')
+            .delete()
+            .eq('id', _announcement!['id']);
+      } else {
+        final values = {
+          'title': titleController.text.trim(),
+          'message': messageController.text.trim(),
+          'expires_at': durationDays == null
+              ? null
+              : DateTime.now()
+                    .add(Duration(days: durationDays!))
+                    .toUtc()
+                    .toIso8601String(),
+        };
+        if (_announcement == null) {
+          await client.from('club_announcements').insert({
+            ...values,
+            'created_by': client.auth.currentUser!.id,
+          });
+        } else {
+          await client
+              .from('club_announcements')
+              .update(values)
+              .eq('id', _announcement!['id']);
+        }
+      }
+      if (mounted) {
+        setState(() => _announcement = null);
+        await _loadAnnouncement();
+      }
+    } on PostgrestException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Meldung nicht gespeichert: ${error.message}'),
+          ),
+        );
+      }
+    } finally {
+      titleController.dispose();
+      messageController.dispose();
+    }
   }
 
   void _selectTeam(int index) {
@@ -242,6 +421,27 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+        if (widget.canManageAnnouncements)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 7, 16, 0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: _manageAnnouncement,
+                style: _debugButtonStyle(),
+                icon: const Icon(Icons.campaign_rounded, size: 16),
+                label: Text(
+                  _announcement == null
+                      ? 'Meldung erstellen'
+                      : 'Meldung bearbeiten',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
         Expanded(
           child: FutureBuilder<List<dynamic>>(
             future: _teamMatches[_selectedTeam]!,
@@ -302,6 +502,10 @@ class _HomeScreenState extends State<HomeScreen> {
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 96),
                 children: [
+                  if (_announcement != null) ...[
+                    _AnnouncementCard(announcement: _announcement!),
+                    const SizedBox(height: 14),
+                  ],
                   const Text(
                     'Alle Termine des KSC Olympia auf einen Blick.',
                     style: TextStyle(color: Colors.white70, fontSize: 14),
@@ -367,6 +571,55 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AnnouncementCard extends StatelessWidget {
+  const _AnnouncementCard({required this.announcement});
+
+  final Map<String, dynamic> announcement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF2F6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFB3C9)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.campaign_rounded, color: Color(0xFFE90046)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  announcement['title'] as String? ?? 'Vereinsmeldung',
+                  style: const TextStyle(
+                    color: Color(0xFF172033),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  announcement['message'] as String? ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF5D6678),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
