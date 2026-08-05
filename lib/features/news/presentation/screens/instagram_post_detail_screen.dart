@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/app_theme.dart';
-import '../../models/instagram_post.dart';
+import '../../domain/models/instagram_post.dart';
 import 'instagram_video_screen.dart';
 
 class InstagramPostDetailScreen extends StatelessWidget {
@@ -36,8 +36,7 @@ class InstagramPostDetailScreen extends StatelessWidget {
                   children: [
                     if (previewUrl != null)
                       GestureDetector(
-                        onTap: () =>
-                            post.isVideo && post.mediaUrl != null
+                        onTap: () => post.isVideo && post.mediaUrl != null
                             ? showInstagramVideo(
                                 context,
                                 videoUrl: post.mediaUrl!,

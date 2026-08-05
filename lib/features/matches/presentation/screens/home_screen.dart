@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/club_logos.dart';
-import '../../data/ligadb_service.dart';
-import '../../models/team_match.dart';
+import '../../data/services/ligadb_service.dart';
+import '../../domain/models/team_match.dart';
 import 'match_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {

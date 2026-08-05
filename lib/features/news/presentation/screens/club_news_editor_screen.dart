@@ -5,8 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
-import '../../models/club_news_post.dart';
-import '../../services/club_news_service.dart';
+import '../../data/services/club_news_service.dart';
+import '../../domain/models/club_news_post.dart';
 
 class ClubNewsEditorScreen extends StatefulWidget {
   const ClubNewsEditorScreen({

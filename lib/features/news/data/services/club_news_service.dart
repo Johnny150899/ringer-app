@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/club_news_post.dart';
+import '../../domain/models/club_news_post.dart';
 
 class ClubNewsService {
   const ClubNewsService(this._client);

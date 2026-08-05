@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/club_logos.dart';
-import '../../data/ligadb_service.dart';
+import '../../data/services/ligadb_service.dart';
 
 class MatchDetailScreen extends StatefulWidget {
   const MatchDetailScreen({

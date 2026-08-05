@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_theme.dart';
-import '../../models/club_news_post.dart';
+import '../../domain/models/club_news_post.dart';
 import 'instagram_post_detail_screen.dart';
 
 class ClubNewsDetailScreen extends StatelessWidget {

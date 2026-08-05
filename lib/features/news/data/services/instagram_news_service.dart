@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/instagram_post.dart';
+import '../../domain/models/instagram_post.dart';
 
 class InstagramNewsService {
   const InstagramNewsService(this._client);

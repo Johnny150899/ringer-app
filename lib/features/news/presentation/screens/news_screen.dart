@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
-import '../../models/club_news_post.dart';
-import '../../models/instagram_post.dart';
-import '../../services/club_news_service.dart';
-import '../../services/instagram_news_service.dart';
+import '../../data/services/club_news_service.dart';
+import '../../data/services/instagram_news_service.dart';
+import '../../domain/models/club_news_post.dart';
+import '../../domain/models/instagram_post.dart';
 import 'club_news_editor_screen.dart';
 import 'club_news_detail_screen.dart';
 import 'instagram_post_detail_screen.dart';

@@ -9,6 +9,7 @@ create table public.instagram_token_state (
 
 alter table public.instagram_token_state enable row level security;
 revoke all on public.instagram_token_state from anon, authenticated;
+grant select, insert, update on public.instagram_token_state to service_role;
 
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;

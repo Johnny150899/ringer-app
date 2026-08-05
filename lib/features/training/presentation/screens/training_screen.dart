@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
-import '../../data/training_schedule.dart';
-import '../../models/training_session.dart';
+import '../../data/sources/training_schedule.dart';
+import '../../domain/models/training_session.dart';
 
 class TrainingScreen extends StatefulWidget {
   const TrainingScreen({

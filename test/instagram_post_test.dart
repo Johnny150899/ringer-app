@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ringer_app/features/news/models/instagram_post.dart';
+import 'package:ringer_app/features/news/domain/models/instagram_post.dart';
 
 void main() {
   test('image post uses its media URL as preview', () {

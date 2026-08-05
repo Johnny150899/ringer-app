@@ -1,4 +1,4 @@
-import '../models/training_session.dart';
+import '../../domain/models/training_session.dart';
 
 abstract final class TrainingSchedule {
   static const sessions = <TrainingSession>[

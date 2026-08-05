@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-import '../models/single_match.dart';
-import '../models/team_match.dart';
+import '../../domain/models/single_match.dart';
+import '../../domain/models/team_match.dart';
 
 class LigaDbService {
   LigaDbService({http.Client? client})
