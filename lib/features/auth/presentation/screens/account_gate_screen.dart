@@ -464,12 +464,15 @@ class _AccountScreenState extends State<_AccountScreen> {
             final approved = status == 'approved';
             final isFan = role == 'fan';
             final isTrainer = role == 'trainer';
+            final isOrganization = role == 'organization';
             final isAdmin = role == 'admin';
             final statusColor = isFan || approved
                 ? const Color(0xFF168A5B)
                 : Colors.orange.shade800;
             final statusText = isAdmin
                 ? 'Administratorkonto'
+                : isOrganization
+                ? 'Organisationskonto'
                 : isTrainer
                 ? 'Trainerkonto'
                 : isFan

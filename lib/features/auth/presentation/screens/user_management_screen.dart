@@ -13,7 +13,14 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  static const _roles = ['all', 'fan', 'member', 'trainer', 'admin'];
+  static const _roles = [
+    'all',
+    'fan',
+    'member',
+    'trainer',
+    'organization',
+    'admin',
+  ];
 
   late Future<List<Map<String, dynamic>>> _profiles;
   final _searchController = TextEditingController();
@@ -193,6 +200,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     'fan' => 'Fan',
     'member' => 'Mitglied',
     'trainer' => 'Trainer',
+    'organization' => 'Organisation',
     'admin' => 'Admin',
     _ => 'Alle',
   };
@@ -200,6 +208,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   static Color _roleColor(String role) => switch (role) {
     'admin' => AppColors.red,
     'trainer' => const Color(0xFF7154B8),
+    'organization' => const Color(0xFFB45309),
     'member' => const Color(0xFF168A5B),
     _ => const Color(0xFF64748B),
   };
@@ -422,6 +431,10 @@ class _ProfileCard extends StatelessWidget {
                     PopupMenuItem(value: 'fan', child: Text('Fan')),
                     PopupMenuItem(value: 'member', child: Text('Mitglied')),
                     PopupMenuItem(value: 'trainer', child: Text('Trainer')),
+                    PopupMenuItem(
+                      value: 'organization',
+                      child: Text('Organisation'),
+                    ),
                     PopupMenuItem(value: 'admin', child: Text('Admin')),
                   ],
                   child: Container(

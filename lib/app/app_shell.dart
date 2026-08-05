@@ -28,6 +28,7 @@ class _AppShellState extends State<AppShell> {
   bool _hasMemberAccess = false;
   bool _canReviewMemberships = false;
   bool _isAdmin = false;
+  bool _canPublishClubNews = false;
   bool _canRespondTraining = false;
   List<String> _trainingGroups = const [];
   int _pendingMembershipCount = 0;
@@ -57,6 +58,7 @@ class _AppShellState extends State<AppShell> {
           _hasMemberAccess = false;
           _canReviewMemberships = false;
           _isAdmin = false;
+          _canPublishClubNews = false;
           _canRespondTraining = false;
           _trainingGroups = const [];
           _pendingMembershipCount = 0;
@@ -99,6 +101,9 @@ class _AppShellState extends State<AppShell> {
               (role == 'member' || role == 'trainer' || role == 'admin');
           _canReviewMemberships = canReview;
           _isAdmin = approved && role == 'admin';
+          _canPublishClubNews =
+              approved &&
+              (role == 'trainer' || role == 'organization' || role == 'admin');
           _canRespondTraining =
               approved && profile?['can_respond_training'] == true;
           _trainingGroups = trainingGroups;
@@ -111,6 +116,7 @@ class _AppShellState extends State<AppShell> {
           _hasMemberAccess = false;
           _canReviewMemberships = false;
           _isAdmin = false;
+          _canPublishClubNews = false;
           _canRespondTraining = false;
           _trainingGroups = const [];
           _pendingMembershipCount = 0;
@@ -166,7 +172,11 @@ class _AppShellState extends State<AppShell> {
         trainingGroups: _trainingGroups,
         canManageSessions: _canReviewMemberships,
       ),
-      const NewsScreen(),
+      NewsScreen(
+        supabaseClient: widget.supabaseClient,
+        canPublishClubNews: _canPublishClubNews,
+        isAdmin: _isAdmin,
+      ),
       const TeamScreen(),
       LivestreamScreen(
         isAuthenticated: _isAuthenticated,
