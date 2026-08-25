@@ -28,4 +28,14 @@ class ClubNewsPost {
   final String? imageUrl;
   final String createdBy;
   final DateTime publishedAt;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'body': body,
+    'image_path': imagePath,
+    'image_url': imageUrl,
+    'created_by': createdBy,
+    'published_at': publishedAt.toUtc().toIso8601String(),
+  };
 }

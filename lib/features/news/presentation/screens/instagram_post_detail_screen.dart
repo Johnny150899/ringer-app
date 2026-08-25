@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../core/widgets/app_network_image.dart';
 import '../../domain/models/instagram_post.dart';
 import 'instagram_video_screen.dart';
 
@@ -47,13 +48,12 @@ class InstagramPostDetailScreen extends StatelessWidget {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.network(
-                                previewUrl,
+                              AppNetworkImage(
+                                url: previewUrl,
                                 fit: BoxFit.cover,
                                 cacheWidth: 900,
-                                filterQuality: FilterQuality.low,
-                                errorBuilder: (_, _, _) =>
-                                    const _ImageFallback(),
+                                placeholder: const _ImageFallback(),
+                                errorWidget: const _ImageFallback(),
                               ),
                               if (post.isVideo)
                                 const Center(child: _DetailVideoPlayBadge()),
@@ -160,17 +160,14 @@ class _FullScreenImage extends StatelessWidget {
         child: InteractiveViewer(
           minScale: 1,
           maxScale: 5,
-          child: Image.network(
-            imageUrl,
+          child: AppNetworkImage(
+            url: imageUrl,
             fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              );
-            },
-            errorBuilder: (_, _, _) => const _ImageFallback(dark: true),
+            cacheWidth: 1600,
+            placeholder: const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+            errorWidget: const _ImageFallback(dark: true),
           ),
         ),
       ),

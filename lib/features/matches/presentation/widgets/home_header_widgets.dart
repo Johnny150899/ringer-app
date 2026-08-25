@@ -57,13 +57,9 @@ class _TeamSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AppGlassSurface(
+      borderRadius: 15,
       padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: const Color(0x3300142B),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: Colors.white12),
-      ),
       child: Row(
         children: [
           _TeamSwitchItem(

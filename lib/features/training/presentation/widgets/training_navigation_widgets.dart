@@ -48,15 +48,7 @@ class _MonthButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onTap,
-      icon: Icon(icon),
-      color: Colors.white,
-      visualDensity: VisualDensity.compact,
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.white.withValues(alpha: .12),
-      ),
-    );
+    return AppGlassIconButton(icon: icon, onPressed: onTap, size: 40);
   }
 }
 
@@ -69,55 +61,63 @@ class _MemberGroupFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: _groups.indexed
-          .map((entry) {
-            final index = entry.$1;
-            final group = entry.$2;
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  right: index < _groups.length - 1 ? 7 : 0,
-                ),
-                child: Semantics(
-                  selected: selected == group,
-                  button: true,
-                  child: InkWell(
-                    key: ValueKey('member-group-$group'),
-                    onTap: () => onSelected(group),
-                    borderRadius: BorderRadius.circular(10),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: selected == group
-                            ? Colors.white
-                            : AppColors.navy.withValues(alpha: .55),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white38),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            group,
-                            style: TextStyle(
-                              color: selected == group
-                                  ? AppColors.navy
-                                  : Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
+    return AppGlassSurface(
+      borderRadius: 14,
+      padding: const EdgeInsets.all(3),
+      child: Row(
+        children: _groups.indexed
+            .map((entry) {
+              final index = entry.$1;
+              final group = entry.$2;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: index < _groups.length - 1 ? 3 : 0,
+                  ),
+                  child: Semantics(
+                    selected: selected == group,
+                    button: true,
+                    child: InkWell(
+                      key: ValueKey('member-group-$group'),
+                      onTap: () => onSelected(group),
+                      borderRadius: BorderRadius.circular(10),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: selected == group
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: selected == group
+                                ? Colors.white
+                                : Colors.transparent,
                           ),
-                        ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              group,
+                              style: TextStyle(
+                                color: selected == group
+                                    ? AppColors.navy
+                                    : Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          })
-          .toList(growable: false),
+              );
+            })
+            .toList(growable: false),
+      ),
     );
   }
 }

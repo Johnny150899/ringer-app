@@ -3,13 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../core/widgets/app_glass_surface.dart';
 import '../../data/sources/training_schedule.dart';
+import '../../data/services/training_contact_service.dart';
+import '../../domain/models/training_contact_info.dart';
 import '../../domain/models/training_session.dart';
 
 part '../widgets/training_navigation_widgets.dart';
 part '../widgets/member_training_card.dart';
 part '../widgets/attendance_widgets.dart';
 part '../widgets/training_group_card.dart';
+part '../widgets/training_contact_card.dart';
 
 class TrainingScreen extends StatefulWidget {
   const TrainingScreen({
@@ -45,6 +49,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   final Map<String, Future<_AttendanceData>> _attendanceFutures = {};
   final Map<String, Map<String, dynamic>> _occurrenceOverrides = {};
   List<TrainingSession> _sessions = TrainingSchedule.sessions;
+  TrainingContactInfo _contactInfo = TrainingContactInfo.defaults;
 
   static const _groupOrder = ['Männer', 'Jugend', 'Bambinis'];
   static const _weekdays = {
@@ -78,6 +83,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final now = widget.nowOverride ?? DateTime.now();
     _visibleMonth = DateTime(now.year, now.month);
     _loadSchedule();
+    _loadContactInfo();
   }
 
   @override
@@ -153,6 +159,109 @@ class _TrainingScreenState extends State<TrainingScreen> {
     } on PostgrestException {
       // Bis zur Migration bleibt der lokale Standardplan sichtbar.
     }
+  }
+
+  Future<void> _loadContactInfo() async {
+    final client = widget.supabaseClient;
+    if (client == null) return;
+    try {
+      final info = await TrainingContactService(client).load();
+      if (mounted) setState(() => _contactInfo = info);
+    } on PostgrestException {
+      // Bis zur Migration bleiben die sicheren Standardwerte sichtbar.
+    }
+  }
+
+  Future<void> _editContactInfo() async {
+    final client = widget.supabaseClient;
+    if (client == null || !widget.isAdmin) return;
+    final clubName = TextEditingController(text: _contactInfo.clubName);
+    final address = TextEditingController(text: _contactInfo.address);
+    final contactName = TextEditingController(text: _contactInfo.contactName);
+    final phone = TextEditingController(text: _contactInfo.phone);
+    final email = TextEditingController(text: _contactInfo.email);
+    final formKey = GlobalKey<FormState>();
+
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.contact_page_rounded, color: AppColors.red),
+        title: const Text('Halle & Kontakt bearbeiten'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ContactTextField(controller: clubName, label: 'Verein'),
+                _ContactTextField(
+                  controller: address,
+                  label: 'Adresse der Trainingshalle',
+                  maxLines: 2,
+                ),
+                _ContactTextField(
+                  controller: contactName,
+                  label: 'Ansprechpartner',
+                ),
+                _ContactTextField(
+                  controller: phone,
+                  label: 'Telefon',
+                  keyboardType: TextInputType.phone,
+                ),
+                _ContactTextField(
+                  controller: email,
+                  label: 'E-Mail',
+                  keyboardType: TextInputType.emailAddress,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() == true) {
+                Navigator.pop(dialogContext, true);
+              }
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+
+    if (save == true && mounted) {
+      final updated = TrainingContactInfo(
+        clubName: clubName.text.trim(),
+        address: address.text.trim(),
+        contactName: contactName.text.trim(),
+        phone: phone.text.trim(),
+        email: email.text.trim(),
+      );
+      try {
+        await TrainingContactService(client).update(updated);
+        if (!mounted) return;
+        setState(() => _contactInfo = updated);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kontaktdaten wurden aktualisiert.')),
+        );
+      } on PostgrestException catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Änderung nicht möglich: ${error.message}')),
+        );
+      }
+    }
+
+    clubName.dispose();
+    address.dispose();
+    contactName.dispose();
+    phone.dispose();
+    email.dispose();
   }
 
   Future<void> _loadOwnResponses() async {
@@ -552,63 +661,64 @@ class _TrainingScreenState extends State<TrainingScreen> {
   @override
   Widget build(BuildContext context) {
     final monthlySessions = _sessionsForVisibleMonth();
+    final canSwitchView =
+        widget.isAdmin ||
+        widget.memberAccess ||
+        (kDebugMode && !widget.memberAccess);
 
     return ListView(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        widget.isAdmin && _showMemberPreview ? 6 : 14,
-        16,
-        96,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
       children: [
-        if (!_showMemberPreview) ...[
-          const Text(
-            'Training',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 25,
-              fontWeight: FontWeight.w900,
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Training',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 25,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
-          ),
+            if (canSwitchView)
+              AppGlassSurface(
+                borderRadius: 18,
+                child: TextButton.icon(
+                  onPressed: () =>
+                      setState(() => _showMemberPreview = !_showMemberPreview),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: const Size(0, 36),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  icon: Icon(
+                    _showMemberPreview
+                        ? Icons.public_rounded
+                        : Icons.badge_outlined,
+                    size: 16,
+                  ),
+                  label: Text(
+                    _showMemberPreview ? 'Gästeansicht' : 'Mitgliederansicht',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (!_showMemberPreview) ...[
           const SizedBox(height: 3),
           const Text(
             'Unsere wöchentlichen Trainingszeiten.',
             style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
         ],
-        if (widget.isAdmin || (kDebugMode && !widget.memberAccess)) ...[
-          SizedBox(height: widget.isAdmin && _showMemberPreview ? 2 : 9),
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              onPressed: () =>
-                  setState(() => _showMemberPreview = !_showMemberPreview),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white38),
-                visualDensity: VisualDensity.compact,
-              ),
-              icon: Icon(
-                _showMemberPreview
-                    ? Icons.public_rounded
-                    : Icons.badge_outlined,
-                size: 16,
-              ),
-              label: Text(
-                _showMemberPreview
-                    ? 'Gästeansicht'
-                    : widget.isAdmin
-                    ? 'Mitgliederansicht'
-                    : 'Mitgliederansicht testen',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ],
-        SizedBox(height: widget.isAdmin && _showMemberPreview ? 8 : 18),
+        const SizedBox(height: 18),
         if (_showMemberPreview) ...[
           _MonthSelector(
             label: '${_months[_visibleMonth.month - 1]} ${_visibleMonth.year}',
@@ -649,7 +759,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               ),
             );
           }),
-        ] else
+        ] else ...[
           ..._groupOrder.map(
             (group) => _TrainingGroupCard(
               group: group,
@@ -661,6 +771,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
               onEdit: _editSession,
             ),
           ),
+          const SizedBox(height: 4),
+          _TrainingContactCard(
+            info: _contactInfo,
+            canEdit: widget.isAdmin && widget.supabaseClient != null,
+            onEdit: _editContactInfo,
+          ),
+        ],
       ],
     );
   }

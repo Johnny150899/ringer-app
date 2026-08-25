@@ -14,7 +14,7 @@ void main() {
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Training'), findsOneWidget);
     expect(find.text('News'), findsOneWidget);
-    expect(find.text('Team'), findsOneWidget);
+    expect(find.text('Liga'), findsOneWidget);
     expect(find.text('Live'), findsOneWidget);
   });
 
@@ -123,7 +123,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Mitgliederansicht testen'));
+    await tester.tap(find.text('Mitgliederansicht'));
     await tester.pump();
 
     expect(find.text('Kommende Einheiten'), findsNothing);
@@ -195,7 +195,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Mitgliederansicht testen'));
+    await tester.tap(find.text('Mitgliederansicht'));
     await tester.pump();
     await tester.tap(find.text('Absagen').first);
     await tester.pumpAndSettle();

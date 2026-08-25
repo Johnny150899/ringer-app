@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_glass_surface.dart';
+
 class NewsHeader extends StatelessWidget {
   const NewsHeader({
     super.key,
@@ -30,24 +32,11 @@ class NewsHeader extends StatelessWidget {
                 ),
               ),
               if (canPublish)
-                Tooltip(
-                  message: 'Vereinsbeitrag erstellen',
-                  child: Material(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      onTap: onCreate,
-                      customBorder: const CircleBorder(),
-                      child: const SizedBox.square(
-                        dimension: 42,
-                        child: Icon(
-                          Icons.post_add_rounded,
-                          color: Colors.white,
-                          size: 23,
-                        ),
-                      ),
-                    ),
-                  ),
+                AppGlassIconButton(
+                  tooltip: 'Vereinsbeitrag erstellen',
+                  icon: Icons.post_add_rounded,
+                  onPressed: onCreate,
+                  size: 42,
                 ),
             ],
           ),

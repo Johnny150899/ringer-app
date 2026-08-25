@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/app_theme.dart';
+
 class FeaturePlaceholder extends StatelessWidget {
   const FeaturePlaceholder({
     super.key,
@@ -19,21 +21,28 @@ class FeaturePlaceholder extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 360),
-          padding: const EdgeInsets.all(28),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .12),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white24),
+            color: Colors.white.withValues(alpha: .14),
+            borderRadius: BorderRadius.circular(AppDesign.radiusLarge),
+            border: Border.all(color: Colors.white.withValues(alpha: .2)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 30,
+                offset: Offset(0, 14),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: .16),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: Icon(icon, color: Colors.white, size: 31),
               ),
@@ -41,11 +50,9 @@ class FeaturePlaceholder extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 25,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineMedium?.copyWith(color: Colors.white),
               ),
               const SizedBox(height: 9),
               Text(

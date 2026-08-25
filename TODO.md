@@ -35,6 +35,10 @@ Stand: 5. August 2026
 
 ## Kampf- und LigaDB-Funktionen
 
+- [x] Liga-Seite mit Tabelle, KSC-Kämpfen und Ergebnissen der übrigen Vereine.
+- [x] Wechsel zwischen erster und zweiter Mannschaft sowie Saisonarchiv.
+- [x] Aktuelle Saison und KSC-Liga automatisch über LigaDB erkennen.
+- [x] Liga-Daten lokal zwischenspeichern und bei Netzwerkfehlern anzeigen.
 - [ ] Vollständige Hallenadresse anbinden, sobald LigaDB einen stabilen,
       öffentlich nutzbaren Endpunkt bereitstellt. Der aktuelle Legacy-Endpunkt
       liefert nur den Ort; die neue interne Route antwortet extern mit HTTP 403.

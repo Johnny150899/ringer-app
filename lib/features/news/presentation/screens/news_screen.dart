@@ -1,10 +1,12 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
 import '../../data/services/club_news_service.dart';
 import '../../data/services/instagram_news_service.dart';
+import '../../data/services/news_cache_store.dart';
 import '../../domain/models/club_news_post.dart';
 import '../../domain/models/instagram_post.dart';
 import '../widgets/news_header.dart';
@@ -29,19 +31,24 @@ class NewsScreen extends StatefulWidget {
 
 class _NewsScreenState extends State<NewsScreen> {
   late Future<_NewsContent> _content;
+  final NewsCacheStore _cacheStore = NewsCacheStore();
+  _NewsContent? _lastContent;
+  int _requestGeneration = 0;
+  bool _isUpdating = false;
 
   @override
   void initState() {
     super.initState();
-    _content = _loadContent();
+    _content = _loadInitial();
   }
 
-  Future<_NewsContent> _loadContent() async {
+  Future<_NewsContent> _loadFreshContent() async {
     final client = widget.supabaseClient;
-    if (client == null) return const _NewsContent();
+    if (client == null) return _lastContent ?? const _NewsContent();
 
-    List<ClubNewsPost> clubPosts = const [];
-    List<InstagramPost> instagramPosts = const [];
+    List<ClubNewsPost> clubPosts = _lastContent?.clubPosts ?? const [];
+    List<InstagramPost> instagramPosts =
+        _lastContent?.instagramPosts ?? const [];
     try {
       clubPosts = await ClubNewsService(client).loadPosts();
     } catch (_) {
@@ -55,10 +62,41 @@ class _NewsScreenState extends State<NewsScreen> {
     return _NewsContent(clubPosts: clubPosts, instagramPosts: instagramPosts);
   }
 
+  Future<_NewsContent> _loadInitial() async {
+    final cached = await _cacheStore.read();
+    if (cached != null) {
+      final content = _NewsContent(
+        clubPosts: cached.clubPosts,
+        instagramPosts: cached.instagramPosts,
+      );
+      _lastContent = content;
+      unawaited(Future<void>.microtask(_refresh));
+      return content;
+    }
+    final content = await _loadFreshContent();
+    _lastContent = content;
+    await _cacheStore.save(
+      clubPosts: content.clubPosts,
+      instagramPosts: content.instagramPosts,
+    );
+    return content;
+  }
+
   Future<void> _refresh() async {
-    final content = await _loadContent();
-    if (!mounted) return;
-    setState(() => _content = SynchronousFuture(content));
+    final generation = ++_requestGeneration;
+    if (mounted) setState(() => _isUpdating = true);
+    final content = await _loadFreshContent();
+    if (!mounted || generation != _requestGeneration) return;
+    await _cacheStore.save(
+      clubPosts: content.clubPosts,
+      instagramPosts: content.instagramPosts,
+    );
+    if (!mounted || generation != _requestGeneration) return;
+    setState(() {
+      _lastContent = content;
+      _content = Future<_NewsContent>.value(content);
+      _isUpdating = false;
+    });
   }
 
   Future<void> _openEditor([ClubNewsPost? post]) async {
@@ -109,18 +147,27 @@ class _NewsScreenState extends State<NewsScreen> {
     return FutureBuilder<_NewsContent>(
       future: _content,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            _lastContent == null) {
           return const Center(
             child: CircularProgressIndicator(color: Colors.white),
           );
         }
-        final content = snapshot.data ?? const _NewsContent();
+        final content = snapshot.data ?? _lastContent ?? const _NewsContent();
         return RefreshIndicator(
           onRefresh: _refresh,
           color: AppColors.red,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              if (_isUpdating)
+                const SliverToBoxAdapter(
+                  child: LinearProgressIndicator(
+                    minHeight: 2,
+                    color: AppColors.red,
+                    backgroundColor: Colors.transparent,
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: NewsHeader(
                   canPublish: widget.canPublishClubNews,

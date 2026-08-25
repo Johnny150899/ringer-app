@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/config/network_policy.dart';
 import '../../domain/models/instagram_post.dart';
 
 class InstagramNewsService {
@@ -10,7 +11,7 @@ class InstagramNewsService {
   Future<List<InstagramPost>> loadPosts() async {
     final response = await _client.functions
         .invoke('instagram-feed')
-        .timeout(const Duration(seconds: 8));
+        .timeout(NetworkPolicy.requestTimeout);
     final body = response.data;
     if (body is! Map || body['posts'] is! List) {
       throw const FormatException('Ungültige Antwort des Instagram-Feeds.');

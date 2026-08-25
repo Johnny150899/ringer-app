@@ -33,4 +33,14 @@ class InstagramPost {
 
   String? get previewUrl =>
       isVideo ? thumbnailUrl ?? mediaUrl : mediaUrl ?? thumbnailUrl;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'caption': caption,
+    'media_type': mediaType,
+    'media_url': mediaUrl,
+    'thumbnail_url': thumbnailUrl,
+    'permalink': permalink,
+    'timestamp': timestamp.toUtc().toIso8601String(),
+  };
 }

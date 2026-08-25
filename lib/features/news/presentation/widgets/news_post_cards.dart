@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../core/widgets/app_network_image.dart';
 import '../../domain/models/club_news_post.dart';
 import '../../domain/models/instagram_post.dart';
 import '../screens/club_news_detail_screen.dart';
@@ -39,11 +40,12 @@ class ClubPostCard extends StatelessWidget {
             if (post.imageUrl != null)
               AspectRatio(
                 aspectRatio: 16 / 10,
-                child: Image.network(
-                  post.imageUrl!,
+                child: AppNetworkImage(
+                  url: post.imageUrl!,
                   fit: BoxFit.cover,
                   cacheWidth: 900,
-                  errorBuilder: (_, _, _) => const MediaFallback(),
+                  placeholder: const MediaFallback(),
+                  errorWidget: const MediaFallback(),
                 ),
               ),
             Padding(
@@ -156,11 +158,12 @@ class InstagramPostCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(
-                      previewUrl,
+                    AppNetworkImage(
+                      url: previewUrl,
                       fit: BoxFit.cover,
                       cacheWidth: 720,
-                      errorBuilder: (_, _, _) => const MediaFallback(),
+                      placeholder: const MediaFallback(),
+                      errorWidget: const MediaFallback(),
                     ),
                     if (post.isVideo) const Center(child: VideoPlayBadge()),
                   ],

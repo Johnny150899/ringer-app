@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/config/network_policy.dart';
 import '../../domain/models/club_news_post.dart';
 
 class ClubNewsService {
@@ -13,7 +14,8 @@ class ClubNewsService {
     final rows = await _client
         .from('club_news_posts')
         .select('id, title, body, image_path, created_by, published_at')
-        .order('published_at', ascending: false);
+        .order('published_at', ascending: false)
+        .timeout(NetworkPolicy.requestTimeout);
     return List<Map<String, dynamic>>.from(rows)
         .map((row) {
           final path = row['image_path'] as String?;

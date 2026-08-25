@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../core/config/network_policy.dart';
 
 class InstagramVideoScreen extends StatefulWidget {
   const InstagramVideoScreen({super.key, required this.videoUrl});
@@ -27,7 +28,7 @@ class _InstagramVideoScreenState extends State<InstagramVideoScreen> {
           _controller.play();
           if (mounted) setState(() {});
         })
-        .timeout(const Duration(seconds: 20));
+        .timeout(NetworkPolicy.mediaTimeout);
   }
 
   @override
