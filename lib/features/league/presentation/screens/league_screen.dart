@@ -181,15 +181,6 @@ class _LeagueScreenState extends State<LeagueScreen> {
                 const SizedBox(height: 12),
               ],
               const Text(
-                'Liga',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
                 'Tabellen, Ergebnisse und alle Begegnungen.',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
@@ -204,10 +195,6 @@ class _LeagueScreenState extends State<LeagueScreen> {
                 selectedSeason: selectedSeason,
                 onSelected: _selectSeason,
               ),
-              if (data.isCached) ...[
-                const SizedBox(height: 10),
-                const _CachedDataNotice(),
-              ],
               const SizedBox(height: 14),
               _LeagueSummary(
                 config: config,
@@ -786,32 +773,6 @@ class _LeagueSectionTitle extends StatelessWidget {
       ),
     );
   }
-}
-
-class _CachedDataNotice extends StatelessWidget {
-  const _CachedDataNotice();
-
-  @override
-  Widget build(BuildContext context) => AppGlassSurface(
-    borderRadius: 14,
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-    child: const Row(
-      children: [
-        Icon(Icons.cloud_off_rounded, color: Colors.white70, size: 18),
-        SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'Offline-Daten – letzter erfolgreicher Stand',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _TableLegend extends StatelessWidget {

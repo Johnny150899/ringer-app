@@ -299,9 +299,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           onRefresh: () async {
                             final refreshed = await _loadProfiles();
                             if (mounted) {
-                              setState(
-                                () => _profiles = Future.value(refreshed),
-                              );
+                              setState(() {
+                                _profiles = Future.value(refreshed);
+                              });
                             }
                           },
                           child: ListView.separated(

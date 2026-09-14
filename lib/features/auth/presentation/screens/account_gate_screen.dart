@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../club/presentation/screens/club_screen.dart';
+import '../../../training/presentation/screens/trial_training_screen.dart';
+import '../../../training/presentation/screens/trial_requests_panel.dart';
 
 part '../widgets/account_screen.dart';
 part '../widgets/membership_requests_screen.dart';
+part '../widgets/membership_benefits_screen.dart';
 
 class AccountGateScreen extends StatelessWidget {
   const AccountGateScreen({super.key});
@@ -155,7 +160,7 @@ class _AuthScreenState extends State<_AuthScreen> {
               const SizedBox(height: 6),
               Text(
                 _registering
-                    ? 'Mit deinem kostenlosen Konto kannst du unsere Livestreams sehen.'
+                    ? 'Mit deinem kostenlosen Konto bleibst du nah am Verein und kannst Mitglied werden.'
                     : 'Melde dich für den Mitgliederbereich an.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white70, fontSize: 13),

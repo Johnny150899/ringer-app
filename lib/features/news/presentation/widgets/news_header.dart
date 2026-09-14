@@ -14,38 +14,17 @@ class NewsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!canPublish) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Neuigkeiten',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (canPublish)
-                AppGlassIconButton(
-                  tooltip: 'Vereinsbeitrag erstellen',
-                  icon: Icons.post_add_rounded,
-                  onPressed: onCreate,
-                  size: 42,
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Aktuelles aus dem Verein und von Instagram',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: AppGlassIconButton(
+          tooltip: 'Vereinsbeitrag erstellen',
+          icon: Icons.post_add_rounded,
+          onPressed: onCreate,
+          size: 42,
+        ),
       ),
     );
   }

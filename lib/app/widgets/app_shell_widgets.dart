@@ -30,6 +30,7 @@ class _SelectedNavIcon extends StatelessWidget {
 
 class _AppHeader extends StatelessWidget {
   const _AppHeader({
+    required this.title,
     required this.isAuthenticated,
     required this.canReviewMemberships,
     required this.canManageUsers,
@@ -39,6 +40,7 @@ class _AppHeader extends StatelessWidget {
     required this.onUserManagementTap,
   });
 
+  final String title;
   final bool isAuthenticated;
   final bool canReviewMemberships;
   final bool canManageUsers;
@@ -50,59 +52,78 @@ class _AppHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 8, 14, 9),
+      padding: const EdgeInsets.fromLTRB(18, 9, 14, 10),
       decoration: const BoxDecoration(
-        color: Color(0x16000000),
-        border: Border(bottom: BorderSide(color: Colors.white12)),
+        gradient: LinearGradient(
+          colors: [Color(0x12000000), Color(0x26000000)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        border: Border(bottom: BorderSide(color: Color(0x24FFFFFF))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white12),
-            ),
+          SizedBox.square(
+            dimension: 46,
             child: Image.asset(
               ClubLogos.kscOlympiaGrabenNeudorf,
               fit: BoxFit.contain,
             ),
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (canManageUsers) ...[
-                _HeaderAction(
-                  key: const ValueKey('user-management-header-button'),
-                  tooltip: 'Benutzer verwalten',
-                  icon: Icons.manage_accounts_rounded,
-                  onTap: onUserManagementTap,
-                ),
-                const SizedBox(width: 8),
-              ],
-              if (canReviewMemberships) ...[
-                _HeaderAction(
-                  key: const ValueKey('membership-requests-header-button'),
-                  tooltip: 'Mitgliedsanträge',
-                  icon: Icons.how_to_reg_rounded,
-                  onTap: onMembershipRequestsTap,
-                  badge: pendingMembershipCount > 0
-                      ? pendingMembershipCount
-                      : null,
-                ),
-                const SizedBox(width: 8),
-              ],
-              _HeaderAction(
-                key: const ValueKey('account-button'),
-                tooltip: isAuthenticated ? 'Mein Konto' : 'Anmelden',
-                icon: isAuthenticated ? Icons.person : Icons.person_outline,
-                onTap: onAccountTap,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
               ),
-            ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: .16)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (canManageUsers) ...[
+                  _HeaderAction(
+                    key: const ValueKey('user-management-header-button'),
+                    tooltip: 'Benutzer verwalten',
+                    icon: Icons.manage_accounts_rounded,
+                    onTap: onUserManagementTap,
+                  ),
+                  const SizedBox(width: 3),
+                ],
+                if (canReviewMemberships) ...[
+                  _HeaderAction(
+                    key: const ValueKey('membership-requests-header-button'),
+                    tooltip: 'Anträge',
+                    icon: Icons.how_to_reg_rounded,
+                    onTap: onMembershipRequestsTap,
+                    badge: pendingMembershipCount > 0
+                        ? pendingMembershipCount
+                        : null,
+                  ),
+                  const SizedBox(width: 3),
+                ],
+                _HeaderAction(
+                  key: const ValueKey('account-button'),
+                  tooltip: isAuthenticated ? 'Mein Konto' : 'Anmelden',
+                  icon: isAuthenticated ? Icons.person : Icons.person_outline,
+                  onTap: onAccountTap,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -129,18 +150,18 @@ class _HeaderAction extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: Colors.white.withValues(alpha: .14),
-        shape: const CircleBorder(side: BorderSide(color: Colors.white12)),
+        color: Colors.white.withValues(alpha: .1),
+        shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox.square(
-            dimension: 42,
+            dimension: 39,
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                Icon(icon, size: 21, color: Colors.white),
+                Icon(icon, size: 20, color: Colors.white),
                 if (badge != null)
                   Positioned(
                     top: -3,

@@ -76,11 +76,20 @@ class _MemberTrainingCard extends StatelessWidget {
     final dateLabel =
         '${date.day.toString().padLeft(2, '0')}.'
         '${date.month.toString().padLeft(2, '0')}.${date.year}';
+    final isCancelled = occurrence?['is_cancelled'] == true;
+    final occurrenceNote = (occurrence?['note'] as String? ?? '').trim();
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white.withValues(alpha: .96),
-        borderRadius: BorderRadius.circular(18),
+        color: isCancelled
+            ? const Color(0xFFFFF4F6).withValues(alpha: .98)
+            : Colors.white.withValues(alpha: .96),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: isCancelled
+              ? const BorderSide(color: AppColors.red, width: 1.5)
+              : BorderSide.none,
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           key: ValueKey(
@@ -136,55 +145,96 @@ class _MemberTrainingCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (occurrence?['is_cancelled'] == true) ...[
-                  const SizedBox(height: 5),
-                  const Text(
-                    'TRAINING FÄLLT AUS',
-                    style: TextStyle(
-                      color: AppColors.red,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
+                if (isCancelled) ...[
+                  const SizedBox(height: 9),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.red.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.event_busy_rounded,
+                          color: AppColors.red,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Training fällt aus',
+                                style: TextStyle(
+                                  color: AppColors.red,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              if (occurrenceNote.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Grund: $occurrenceNote',
+                                  style: const TextStyle(
+                                    color: AppColors.text,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ] else if ((occurrence?['note'] as String? ?? '')
-                    .isNotEmpty) ...[
+                ] else if (occurrenceNote.isNotEmpty) ...[
                   const SizedBox(height: 5),
                   Text(
-                    occurrence!['note'] as String,
+                    occurrenceNote,
                     style: const TextStyle(color: AppColors.red, fontSize: 11),
                   ),
                 ],
-                const SizedBox(height: 9),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FutureBuilder<_AttendanceData>(
-                        future: attendance,
-                        builder: (context, snapshot) {
-                          final data = snapshot.data;
-                          return Text(
-                            data == null
-                                ? 'Teilnahmen laden …'
-                                : '${data.accepted.length} Zusagen · '
-                                      '${data.declined.length} Absagen · '
-                                      '${data.openCount} offen',
-                            style: const TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        },
+                if (!isCancelled) ...[
+                  const SizedBox(height: 9),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FutureBuilder<_AttendanceData>(
+                          future: attendance,
+                          builder: (context, snapshot) {
+                            final data = snapshot.data;
+                            return Text(
+                              data == null
+                                  ? 'Teilnahmen laden …'
+                                  : '${data.accepted.length} Zusagen · '
+                                        '${data.declined.length} Absagen · '
+                                        '${data.openCount} offen',
+                              style: const TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: AppColors.muted,
-                    ),
-                  ],
-                ),
-                if (canRespond) ...[
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: AppColors.muted,
+                      ),
+                    ],
+                  ),
+                ],
+                if (canRespond && !isCancelled) ...[
                   const SizedBox(height: 8),
                   Row(
                     children: [

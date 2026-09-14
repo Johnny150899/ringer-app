@@ -15,7 +15,7 @@ void main() {
     expect(find.text('Training'), findsOneWidget);
     expect(find.text('News'), findsOneWidget);
     expect(find.text('Liga'), findsOneWidget);
-    expect(find.text('Live'), findsOneWidget);
+    expect(find.text('Verein'), findsOneWidget);
   });
 
   testWidgets('selecting a destination changes the visible screen', (
@@ -29,17 +29,22 @@ void main() {
     expect(find.text('Training'), findsNWidgets(2));
   });
 
-  testWidgets('livestream asks guests to create a fan account', (tester) async {
+  testWidgets('club tab lets guests explore membership and trial training', (
+    tester,
+  ) async {
     await tester.pumpWidget(const RingerApp());
 
-    await tester.tap(find.text('Live'));
+    await tester.tap(find.text('Verein'));
     await tester.pump();
 
-    expect(find.text('Livestream für Fans'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('livestream-login-button')),
-      findsOneWidget,
+    expect(find.text('Mitglied werden'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Probetraining anfragen'),
+      250,
+      scrollable: find.byType(Scrollable).last,
     );
+    expect(find.text('Probetraining anfragen'), findsOneWidget);
+    expect(find.text('Anmelden, um Mitglied zu werden'), findsOneWidget);
   });
 
   testWidgets('home separates upcoming matches and past results', (
@@ -114,17 +119,17 @@ void main() {
     expect(find.textContaining('03.08.'), findsNothing);
   });
 
-  testWidgets('training debug preview lets members respond', (tester) async {
+  testWidgets('member training view lets members respond', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: TrainingScreen(nowOverride: DateTime(2026, 8, 3, 12)),
+          body: TrainingScreen(
+            memberAccess: true,
+            nowOverride: DateTime(2026, 8, 3, 12),
+          ),
         ),
       ),
     );
-
-    await tester.tap(find.text('Mitgliederansicht'));
-    await tester.pump();
 
     expect(find.text('Kommende Einheiten'), findsNothing);
     expect(find.text('August 2026'), findsOneWidget);
@@ -190,13 +195,14 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: TrainingScreen(nowOverride: DateTime(2026, 8, 3, 12)),
+          body: TrainingScreen(
+            memberAccess: true,
+            nowOverride: DateTime(2026, 8, 3, 12),
+          ),
         ),
       ),
     );
 
-    await tester.tap(find.text('Mitgliederansicht'));
-    await tester.pump();
     await tester.tap(find.text('Absagen').first);
     await tester.pumpAndSettle();
 
@@ -232,7 +238,7 @@ void main() {
     const singleMatches = [
       {
         'Stilart': 'L',
-        'Gewichtsklasse': '57',
+        'Gewichtsklasse': '57F',
         'NameHeim': 'Abuzar Salar',
         'NameGast': 'Vincent Melechin',
         'HPunkte': 4,
@@ -272,6 +278,7 @@ void main() {
     expect(find.text('SS 12:0'), findsOneWidget);
     expect(find.text('PS 2:8'), findsOneWidget);
     expect(find.text('57 kg'), findsOneWidget);
+    expect(find.text('57F kg'), findsNothing);
     expect(find.text('Freistil'), findsOneWidget);
 
     expect(find.text('1:06 min'), findsOneWidget);

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,6 +7,8 @@ import '../../data/sources/training_schedule.dart';
 import '../../data/services/training_contact_service.dart';
 import '../../domain/models/training_contact_info.dart';
 import '../../domain/models/training_session.dart';
+import 'trial_training_screen.dart';
+import 'trial_requests_panel.dart';
 
 part '../widgets/training_navigation_widgets.dart';
 part '../widgets/member_training_card.dart';
@@ -25,6 +26,7 @@ class TrainingScreen extends StatefulWidget {
     this.canRespond = false,
     this.trainingGroups = const [],
     this.canManageSessions = false,
+    this.canReviewTrialRequests = false,
   });
 
   // Bleibt für bestehende Tests und die spätere Mitgliederansicht kompatibel.
@@ -35,6 +37,7 @@ class TrainingScreen extends StatefulWidget {
   final bool canRespond;
   final List<String> trainingGroups;
   final bool canManageSessions;
+  final bool canReviewTrialRequests;
 
   @override
   State<TrainingScreen> createState() => _TrainingScreenState();
@@ -333,9 +336,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final key = _occurrenceKey(session, date);
     final existing = _occurrenceOverrides[key];
     var cancelled = existing?['is_cancelled'] == true;
-    final note = TextEditingController(
-      text: existing?['note'] as String? ?? '',
-    );
+    var noteText = existing?['note'] as String? ?? '';
     final save = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -350,9 +351,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 value: cancelled,
                 onChanged: (value) => setDialogState(() => cancelled = value),
               ),
-              TextField(
-                controller: note,
+              TextFormField(
+                initialValue: noteText,
                 maxLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: (value) => noteText = value,
                 decoration: const InputDecoration(
                   labelText: 'Hinweis (optional)',
                 ),
@@ -365,7 +368,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
               child: const Text('Abbrechen'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
+              onPressed: () {
+                FocusScope.of(dialogContext).unfocus();
+                Navigator.pop(dialogContext, true);
+              },
               child: const Text('Speichern'),
             ),
           ],
@@ -384,14 +390,14 @@ class _TrainingScreenState extends State<TrainingScreen> {
             'target_schedule_id': session.id,
             'target_date': dateValue,
             'cancelled': cancelled,
-            'new_note': note.text.trim(),
+            'new_note': noteText.trim(),
           },
         );
         if (mounted) {
           setState(
             () => _occurrenceOverrides[key] = {
               'is_cancelled': cancelled,
-              'note': note.text.trim(),
+              'note': noteText.trim(),
             },
           );
         }
@@ -403,7 +409,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         }
       }
     }
-    note.dispose();
   }
 
   Future<void> _editSession(TrainingSession session) async {
@@ -523,6 +528,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
           if (response == true) 'Du',
         ],
         declined: ['Jonas Klein', if (response == false) 'Du'],
+        open: const [
+          'Anna Beispiel',
+          'Felix Muster',
+          'Paul Beispiel',
+          'Sven Muster',
+          'Tom Beispiel',
+        ],
         declineReasons: response == false && _declineReasons[key] != null
             ? {'Du': _declineReasons[key]!}
             : const {},
@@ -540,14 +552,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
         )
         .eq('schedule_id', session.id!)
         .eq('training_date', dateValue);
-    final participantCount = await client
+    final participantRows = await client
         .from('profile_training_groups')
-        .count()
+        .select('user_id, profiles(first_name, last_name)')
         .eq('group_name', session.group);
     final accepted = <String>[];
     final declined = <String>[];
+    final respondedUserIds = <String>{};
     final reasons = <String, String>{};
     for (final raw in List<Map<String, dynamic>>.from(rows)) {
+      final userId = raw['user_id'] as String?;
+      if (userId != null) respondedUserIds.add(userId);
       final profile = raw['profiles'] as Map<String, dynamic>?;
       final name =
           '${profile?['first_name'] ?? ''} ${profile?['last_name'] ?? ''}'
@@ -561,14 +576,25 @@ class _TrainingScreenState extends State<TrainingScreen> {
         if (reason != null && reason.isNotEmpty) reasons[displayName] = reason;
       }
     }
+    final open = <String>[];
+    for (final raw in List<Map<String, dynamic>>.from(participantRows)) {
+      final userId = raw['user_id'] as String?;
+      if (userId == null || respondedUserIds.contains(userId)) continue;
+      final profile = raw['profiles'] as Map<String, dynamic>?;
+      final name =
+          '${profile?['first_name'] ?? ''} ${profile?['last_name'] ?? ''}'
+              .trim();
+      open.add(name.isEmpty ? 'Unbekanntes Mitglied' : name);
+    }
+    accepted.sort();
+    declined.sort();
+    open.sort();
     return _AttendanceData(
       accepted: accepted,
       declined: declined,
+      open: open,
       declineReasons: reasons,
-      openCount: (participantCount - accepted.length - declined.length).clamp(
-        0,
-        participantCount,
-      ),
+      openCount: open.length,
     );
   }
 
@@ -661,26 +687,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
   @override
   Widget build(BuildContext context) {
     final monthlySessions = _sessionsForVisibleMonth();
-    final canSwitchView =
-        widget.isAdmin ||
-        widget.memberAccess ||
-        (kDebugMode && !widget.memberAccess);
+    final canSwitchView = widget.isAdmin || widget.memberAccess;
+    final showMemberView = canSwitchView && _showMemberPreview;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
       children: [
+        if (widget.canReviewTrialRequests && widget.supabaseClient != null)
+          _TrialTrainingOverviewCard(client: widget.supabaseClient!),
         Row(
           children: [
-            const Expanded(
-              child: Text(
-                'Training',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 25,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
+            const Spacer(),
             if (canSwitchView)
               AppGlassSurface(
                 borderRadius: 18,
@@ -695,13 +712,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
                   icon: Icon(
-                    _showMemberPreview
+                    showMemberView
                         ? Icons.public_rounded
                         : Icons.badge_outlined,
                     size: 16,
                   ),
                   label: Text(
-                    _showMemberPreview ? 'Gästeansicht' : 'Mitgliederansicht',
+                    showMemberView ? 'Gästeansicht' : 'Mitgliederansicht',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -711,7 +728,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               ),
           ],
         ),
-        if (!_showMemberPreview) ...[
+        if (!showMemberView) ...[
           const SizedBox(height: 3),
           const Text(
             'Unsere wöchentlichen Trainingszeiten.',
@@ -719,7 +736,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
           ),
         ],
         const SizedBox(height: 18),
-        if (_showMemberPreview) ...[
+        if (showMemberView) ...[
           _MonthSelector(
             label: '${_months[_visibleMonth.month - 1]} ${_visibleMonth.year}',
             onPrevious: () => _changeMonth(-1),
@@ -760,6 +777,51 @@ class _TrainingScreenState extends State<TrainingScreen> {
             );
           }),
         ] else ...[
+          if (widget.supabaseClient != null) ...[
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Neu beim Ringen?',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Lerne uns beim Probetraining kennen.',
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            TrialTrainingScreen(client: widget.supabaseClient!),
+                      ),
+                    ),
+                    child: const Text('Anfragen'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           ..._groupOrder.map(
             (group) => _TrainingGroupCard(
               group: group,
@@ -781,4 +843,75 @@ class _TrainingScreenState extends State<TrainingScreen> {
       ],
     );
   }
+}
+
+class _TrialTrainingOverviewCard extends StatelessWidget {
+  const _TrialTrainingOverviewCard({required this.client});
+  final SupabaseClient client;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 14),
+    child: Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => Scaffold(
+              appBar: AppBar(title: const Text('Probetrainings')),
+              body: TrialRequestsPanel(client: client, staff: true),
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: AppColors.red.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.sports_kabaddi_rounded,
+                  color: AppColors.red,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Probetrainings',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Anfragen prüfen und Teilnahmen bis 4/4 erfassen',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 17,
+                  color: AppColors.navy,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

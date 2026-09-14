@@ -19,11 +19,23 @@ class _AccountScreenState extends State<_AccountScreen> {
     _profile = _loadProfile();
   }
 
-  Future<Map<String, dynamic>?> _loadProfile() => Supabase.instance.client
-      .from('profiles')
-      .select('first_name, last_name, role, membership_status')
-      .eq('id', widget.user.id)
-      .maybeSingle();
+  Future<Map<String, dynamic>?> _loadProfile() async {
+    final profiles = Supabase.instance.client.from('profiles');
+    try {
+      return await profiles
+          .select(
+            'first_name, last_name, role, membership_status, referral_code',
+          )
+          .eq('id', widget.user.id)
+          .maybeSingle();
+    } on PostgrestException {
+      // Die Kontoseite bleibt während einer noch ausstehenden Migration nutzbar.
+      return profiles
+          .select('first_name, last_name, role, membership_status')
+          .eq('id', widget.user.id)
+          .maybeSingle();
+    }
+  }
 
   Future<void> _requestMembership() async {
     try {
@@ -169,6 +181,7 @@ class _AccountScreenState extends State<_AccountScreen> {
             final isTrainer = role == 'trainer';
             final isOrganization = role == 'organization';
             final isAdmin = role == 'admin';
+            final hasMembership = approved && !isFan;
             final statusColor = isFan || approved
                 ? const Color(0xFF168A5B)
                 : Colors.orange.shade800;
@@ -270,15 +283,60 @@ class _AccountScreenState extends State<_AccountScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton.icon(
-                            onPressed: _requestMembership,
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => MembershipBenefitsScreen(
+                                  profile: profile,
+                                  email: widget.user.email ?? '',
+                                  onRequestMembership: _requestMembership,
+                                ),
+                              ),
+                            ),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.navy,
                             ),
-                            icon: const Icon(Icons.badge_outlined),
-                            label: const Text('Mitgliedschaft beantragen'),
+                            icon: const Icon(Icons.favorite_outline_rounded),
+                            label: const Text('Mitglied werden'),
                           ),
                         ),
                       ],
+                      if (hasMembership) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => MembershipBenefitsScreen(
+                                  profile: profile,
+                                  email: widget.user.email ?? '',
+                                  onRequestMembership: _requestMembership,
+                                ),
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.navy,
+                            ),
+                            icon: const Icon(Icons.card_membership_rounded),
+                            label: const Text('Meine Vorteile'),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => TrialTrainingScreen(
+                                client: Supabase.instance.client,
+                              ),
+                            ),
+                          ),
+                          icon: const Icon(Icons.sports_kabaddi_rounded),
+                          label: const Text('Mein Probetraining'),
+                        ),
+                      ),
                       const SizedBox(height: 18),
                       SizedBox(
                         width: double.infinity,

@@ -1,14 +1,42 @@
 part of '../screens/account_gate_screen.dart';
 
-class MembershipRequestsScreen extends StatefulWidget {
+class MembershipRequestsScreen extends StatelessWidget {
   const MembershipRequestsScreen({super.key});
 
   @override
-  State<MembershipRequestsScreen> createState() =>
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 2,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('Anträge'),
+        bottom: const TabBar(
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: [
+            Tab(text: 'Mitgliedschaft'),
+            Tab(text: 'Probetraining'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        children: [
+          const _MembershipOnlyScreen(),
+          TrialRequestsPanel(client: Supabase.instance.client, staff: true),
+        ],
+      ),
+    ),
+  );
+}
+
+class _MembershipOnlyScreen extends StatefulWidget {
+  const _MembershipOnlyScreen();
+
+  @override
+  State<_MembershipOnlyScreen> createState() =>
       _MembershipRequestsScreenState();
 }
 
-class _MembershipRequestsScreenState extends State<MembershipRequestsScreen> {
+class _MembershipRequestsScreenState extends State<_MembershipOnlyScreen> {
   late Future<List<Map<String, dynamic>>> _requests;
   String? _processingUserId;
 
@@ -97,11 +125,6 @@ class _MembershipRequestsScreenState extends State<MembershipRequestsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.navy,
-      appBar: AppBar(
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
-        title: const Text('Mitgliedsanträge'),
-      ),
       body: DecoratedBox(
         decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
         child: FutureBuilder<List<Map<String, dynamic>>>(

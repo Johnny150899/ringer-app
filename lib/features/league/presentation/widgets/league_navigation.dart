@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../app/app_theme.dart';
 import '../../../../core/widgets/app_glass_surface.dart';
 
 class LeagueTeamSwitcher extends StatelessWidget {
@@ -21,23 +20,36 @@ class LeagueTeamSwitcher extends StatelessWidget {
       children: List.generate(2, (index) {
         final selected = index == selectedIndex;
         return Expanded(
-          child: InkWell(
-            onTap: () => onSelected(index),
-            borderRadius: BorderRadius.circular(12),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              height: 38,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${index + 1}. Mannschaft',
-                style: TextStyle(
-                  color: selected ? AppColors.navy : Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
+          child: Semantics(
+            button: true,
+            selected: selected,
+            child: InkWell(
+              onTap: () => onSelected(index),
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                decoration: BoxDecoration(
+                  color: selected ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: selected
+                      ? const [
+                          BoxShadow(
+                            color: Color(0x2600142B),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Text(
+                  '${index + 1}. Mannschaft',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: selected ? const Color(0xFF061E39) : Colors.white70,
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -71,23 +83,40 @@ class LeagueSeasonSwitcher extends StatelessWidget {
             .map((season) {
               final selected = season == selectedSeason;
               return Expanded(
-                child: InkWell(
-                  onTap: () => onSelected(season),
-                  borderRadius: BorderRadius.circular(12),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected ? Colors.white : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '$season',
-                      style: TextStyle(
-                        color: selected ? AppColors.navy : Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
+                child: Semantics(
+                  button: true,
+                  selected: selected,
+                  child: InkWell(
+                    onTap: () => onSelected(season),
+                    borderRadius: BorderRadius.circular(10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      decoration: BoxDecoration(
+                        color: selected ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: selected
+                            ? const [
+                                BoxShadow(
+                                  color: Color(0x2600142B),
+                                  blurRadius: 10,
+                                  offset: Offset(0, 4),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        '$season',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: selected
+                              ? const Color(0xFF061E39)
+                              : Colors.white70,
+                          fontSize: 12,
+                          fontWeight: selected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -31,18 +30,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const Map<String, dynamic> _resultTestMatch = {
-    'BegegnungsID': 78926,
-    'KampftagIst': '2025-09-13T00:00:00',
-    'Beginn': '20:00',
-    'HeimMannschaft': 'ASV Bruchsal',
-    'GastMannschaft': 'KSC Olympia Graben-Neudorf',
-    'HeimOrganisationsID': 163,
-    'GastOrganisationsID': 165,
-    'PunkteHeimWertung': 12,
-    'PunkteGastWertung': 19,
-  };
-
   static final RegExp _multipleSpaces = RegExp(r'\s+');
 
   static const Map<String, String> _shortTeamNames = {
@@ -61,7 +48,6 @@ class _HomeScreenState extends State<HomeScreen> {
   late final LigaDbService _service;
   late final List<Future<List<dynamic>>?> _teamMatches;
   int _selectedTeam = 0;
-  bool _showPastMatchPreview = false;
   Map<String, dynamic>? _announcement;
 
   @override
@@ -331,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
         '${_score(match['PunkteGastWertung'])}';
   }
 
-  ButtonStyle _debugButtonStyle() {
+  ButtonStyle _announcementButtonStyle() {
     return OutlinedButton.styleFrom(
       foregroundColor: Colors.white,
       side: const BorderSide(color: Colors.white38),
@@ -378,54 +364,6 @@ class _HomeScreenState extends State<HomeScreen> {
             onSelected: _selectTeam,
           ),
         ),
-        if (kDebugMode)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 7, 16, 0),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 6,
-                runSpacing: 5,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () =>
-                        _openMatchDetails(context, _resultTestMatch),
-                    style: _debugButtonStyle(),
-                    icon: const Icon(Icons.science_outlined, size: 16),
-                    label: const Text(
-                      'Einzelkämpfe',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => setState(
-                      () => _showPastMatchPreview = !_showPastMatchPreview,
-                    ),
-                    style: _debugButtonStyle(),
-                    icon: Icon(
-                      _showPastMatchPreview
-                          ? Icons.visibility_off_outlined
-                          : Icons.history_rounded,
-                      size: 16,
-                    ),
-                    label: Text(
-                      _showPastMatchPreview
-                          ? 'Ergebnis ausblenden'
-                          : 'Letztes Ergebnis testen',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         if (widget.canManageAnnouncements)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 7, 16, 0),
@@ -433,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> {
               alignment: Alignment.centerRight,
               child: OutlinedButton.icon(
                 onPressed: _manageAnnouncement,
-                style: _debugButtonStyle(),
+                style: _announcementButtonStyle(),
                 icon: const Icon(Icons.campaign_rounded, size: 16),
                 label: Text(
                   _announcement == null
@@ -466,14 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
 
-              final matches = <dynamic>[
-                ...?snapshot.data,
-                if (_showPastMatchPreview &&
-                    !(snapshot.data ?? []).any(
-                      (match) => match['BegegnungsID'] == 78926,
-                    ))
-                  _resultTestMatch,
-              ];
+              final matches = <dynamic>[...?snapshot.data];
               if (matches.isEmpty) {
                 return const _StatusView(
                   icon: Icons.event_busy_rounded,

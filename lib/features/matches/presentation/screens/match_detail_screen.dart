@@ -91,6 +91,15 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
     };
   }
 
+  String _weight(dynamic value) {
+    final raw = _text(value);
+    final match = RegExp(
+      r'^([0-9]+(?:[.,][0-9]+)?)\s*[FG]$',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    return '${match?.group(1) ?? raw} kg';
+  }
+
   Future<void> _openGoogleMaps(Map<String, dynamic> venue) async {
     final venueName = _text(venue['name'], fallback: '');
     final address = _text(venue['address'], fallback: '');
@@ -214,7 +223,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                 else
                   ...(snapshot.data ?? []).map(
                     (singleMatch) => _SingleMatchCard(
-                      weight: '${_text(singleMatch['Gewichtsklasse'])} kg',
+                      weight: _weight(singleMatch['Gewichtsklasse']),
                       style: _style(singleMatch['Stilart']),
                       homeName: _text(singleMatch['NameHeim']),
                       guestName: _text(singleMatch['NameGast']),

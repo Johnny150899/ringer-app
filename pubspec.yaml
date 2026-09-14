@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -37,7 +39,10 @@ dependencies:
   http: ^1.6.0
   url_launcher: ^6.3.2
   supabase_flutter: ^2.16.0
-  video_player: ^2.13.0
+  # 2.14.0 zieht derzeit video_player_android 2.12.1 ein, das mit der
+  # verwendeten Android-/Kotlin-Konfiguration doppelte Codec-Deklarationen
+  # erzeugt. Bis zum Upstream-Fix auf die funktionierende Version festsetzen.
+  video_player: 2.13.0
   image_picker: ^1.2.1
   shared_preferences: ^2.5.5
   cached_network_image: ^3.4.1

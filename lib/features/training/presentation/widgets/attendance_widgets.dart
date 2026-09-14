@@ -96,6 +96,8 @@ class _AttendanceSheet extends StatelessWidget {
             notes: showDeclineReasons ? attendance.declineReasons : const {},
             selfNote: response == false ? declineReason : null,
           ),
+          const SizedBox(height: 12),
+          _OpenAttendanceSection(names: attendance.open ?? const <String>[]),
           if (response == null) ...[
             const SizedBox(height: 14),
             const Text(
@@ -105,6 +107,86 @@ class _AttendanceSheet extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _OpenAttendanceSection extends StatelessWidget {
+  const _OpenAttendanceSection({required this.names});
+
+  final List<String> names;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = AppColors.muted;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: .16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        key: const PageStorageKey('open-training-attendance'),
+        initiallyExpanded: false,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        leading: const Icon(Icons.schedule_rounded, color: color, size: 20),
+        title: Text(
+          'Noch offen (${names.length})',
+          style: const TextStyle(
+            color: color,
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        children: names.isEmpty
+            ? const [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Alle haben bereits abgestimmt.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
+                ),
+              ]
+            : names
+                  .map(
+                    (name) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundColor: color.withValues(alpha: .11),
+                            child: Text(
+                              name.characters.first,
+                              style: const TextStyle(
+                                color: color,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                color: AppColors.text,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
       ),
     );
   }
@@ -220,12 +302,16 @@ class _AttendanceData {
   const _AttendanceData({
     required this.accepted,
     required this.declined,
+    required this.open,
     required this.declineReasons,
     required this.openCount,
   });
 
   final List<String> accepted;
   final List<String> declined;
+  // Nullable so objects retained by Flutter during a hot reload from the
+  // previous class shape cannot crash the attendance sheet.
+  final List<String>? open;
   final Map<String, String> declineReasons;
   final int openCount;
 }

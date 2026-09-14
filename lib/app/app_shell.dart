@@ -9,7 +9,6 @@ import '../features/auth/data/services/user_access_service.dart';
 import '../features/auth/presentation/screens/account_gate_screen.dart';
 import '../features/auth/presentation/screens/user_management_screen.dart';
 import '../features/league/presentation/screens/league_screen.dart';
-import '../features/livestream/presentation/screens/livestream_screen.dart';
 import '../features/matches/presentation/screens/home_screen.dart';
 import '../features/news/presentation/screens/news_screen.dart';
 import '../features/training/presentation/screens/training_screen.dart';
@@ -30,7 +29,9 @@ class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
   final Set<int> _visitedTabs = {0};
   late bool _isAuthenticated;
+  String _role = 'fan';
   bool _hasMemberAccess = false;
+  bool _hasClubAccess = false;
   bool _canReviewMemberships = false;
   bool _isAdmin = false;
   bool _canPublishClubNews = false;
@@ -38,8 +39,10 @@ class _AppShellState extends State<AppShell> {
   List<String> _trainingGroups = const [];
   int _pendingMembershipCount = 0;
   StreamSubscription<AuthState>? _authSubscription;
+  RealtimeChannel? _profileChannel;
   UserAccessService? _userAccessService;
   bool _assetsPrecached = false;
+  bool _membershipWelcomeOpen = false;
 
   @override
   void initState() {
@@ -47,6 +50,7 @@ class _AppShellState extends State<AppShell> {
     _isAuthenticated = widget.supabaseClient?.auth.currentSession != null;
     final client = widget.supabaseClient;
     if (client != null) _userAccessService = UserAccessService(client);
+    _subscribeToProfileChanges();
     _refreshPermissions();
     _authSubscription = widget.supabaseClient?.auth.onAuthStateChange.listen((
       state,
@@ -54,6 +58,7 @@ class _AppShellState extends State<AppShell> {
       if (mounted) {
         setState(() => _isAuthenticated = state.session != null);
         _userAccessService?.invalidate();
+        _subscribeToProfileChanges();
         await _refreshPermissions(force: true);
       }
     });
@@ -65,7 +70,9 @@ class _AppShellState extends State<AppShell> {
     if (client == null || user == null) {
       if (mounted) {
         setState(() {
+          _role = 'fan';
           _hasMemberAccess = false;
+          _hasClubAccess = false;
           _canReviewMemberships = false;
           _isAdmin = false;
           _canPublishClubNews = false;
@@ -80,7 +87,9 @@ class _AppShellState extends State<AppShell> {
       final access = await _userAccessService!.load(force: force);
       if (mounted) {
         setState(() {
+          _role = access.role;
           _hasMemberAccess = access.hasMemberAccess;
+          _hasClubAccess = access.hasClubAccess;
           _canReviewMemberships = access.canReviewMemberships;
           _isAdmin = access.isAdmin;
           _canPublishClubNews = access.canPublishClubNews;
@@ -88,11 +97,14 @@ class _AppShellState extends State<AppShell> {
           _trainingGroups = access.trainingGroups;
           _pendingMembershipCount = access.pendingMembershipCount;
         });
+        _showMembershipWelcomeIfNeeded(access);
       }
     } on PostgrestException {
       if (mounted) {
         setState(() {
+          _role = 'fan';
           _hasMemberAccess = false;
+          _hasClubAccess = false;
           _canReviewMemberships = false;
           _isAdmin = false;
           _canPublishClubNews = false;
@@ -102,6 +114,98 @@ class _AppShellState extends State<AppShell> {
         });
       }
     }
+  }
+
+  void _subscribeToProfileChanges() {
+    final client = widget.supabaseClient;
+    final userId = client?.auth.currentUser?.id;
+    final previous = _profileChannel;
+    _profileChannel = null;
+    if (client != null && previous != null) {
+      unawaited(client.removeChannel(previous));
+    }
+    if (client == null || userId == null) return;
+    _profileChannel = client
+        .channel('own-profile-$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'profiles',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: userId,
+          ),
+          callback: (_) {
+            _userAccessService?.invalidate();
+            unawaited(_refreshPermissions(force: true));
+          },
+        )
+        .subscribe();
+  }
+
+  void _showMembershipWelcomeIfNeeded(UserAccessSnapshot access) {
+    if (!access.shouldShowMembershipWelcome || _membershipWelcomeOpen) return;
+    _membershipWelcomeOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(
+            Icons.verified_rounded,
+            color: Color(0xFF168A5B),
+            size: 42,
+          ),
+          title: const Text(
+            'Mitgliedschaft bestätigt!',
+            textAlign: TextAlign.center,
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Willkommen im Mitgliederbereich. Neu für dich:'),
+              SizedBox(height: 14),
+              _MembershipFeature(
+                icon: Icons.event_available_rounded,
+                text: 'Mitgliederansicht der Trainings',
+              ),
+              _MembershipFeature(
+                icon: Icons.groups_rounded,
+                text: 'Zu- und Absagen der Trainingsgruppe einsehen',
+              ),
+              _MembershipFeature(
+                icon: Icons.card_giftcard_rounded,
+                text: 'Mitgliedervorteile und Empfehlungscode',
+              ),
+              _MembershipFeature(
+                icon: Icons.lock_open_rounded,
+                text: 'Weitere interne Vereinsfunktionen',
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Los geht’s'),
+            ),
+          ],
+        ),
+      );
+      try {
+        await widget.supabaseClient?.rpc<void>(
+          'acknowledge_membership_welcome',
+        );
+      } on PostgrestException {
+        // Die Bestätigung wird beim nächsten Start erneut angeboten.
+      } finally {
+        _membershipWelcomeOpen = false;
+        _userAccessService?.invalidate();
+      }
+    });
   }
 
   @override
@@ -116,6 +220,11 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     _authSubscription?.cancel();
+    final client = widget.supabaseClient;
+    final channel = _profileChannel;
+    if (client != null && channel != null) {
+      unawaited(client.removeChannel(channel));
+    }
     super.dispose();
   }
 
@@ -163,6 +272,7 @@ class _AppShellState extends State<AppShell> {
               canRespond: _canRespondTraining,
               trainingGroups: _trainingGroups,
               canManageSessions: _canReviewMemberships,
+              canReviewTrialRequests: _canReviewMemberships,
             )
           : const SizedBox.shrink(),
       _visitedTabs.contains(2)
@@ -174,8 +284,10 @@ class _AppShellState extends State<AppShell> {
           : const SizedBox.shrink(),
       _visitedTabs.contains(3) ? const LeagueScreen() : const SizedBox.shrink(),
       _visitedTabs.contains(4)
-          ? LivestreamScreen(
+          ? MembershipTabScreen(
               isAuthenticated: _isAuthenticated,
+              hasClubAccess: _hasClubAccess,
+              role: _role,
               onLogin: _openAccount,
             )
           : const SizedBox.shrink(),
@@ -190,6 +302,13 @@ class _AppShellState extends State<AppShell> {
           child: Column(
             children: [
               _AppHeader(
+                title: const [
+                  'Home',
+                  'Training',
+                  'News',
+                  'Liga',
+                  'Verein',
+                ][_selectedIndex],
                 isAuthenticated: _isAuthenticated,
                 canReviewMemberships: _canReviewMemberships,
                 canManageUsers: _canReviewMemberships,
@@ -276,9 +395,9 @@ class _AppShellState extends State<AppShell> {
                         label: 'Liga',
                       ),
                       NavigationDestination(
-                        icon: Icon(Icons.live_tv_outlined),
-                        selectedIcon: _SelectedNavIcon(Icons.live_tv_rounded),
-                        label: 'Live',
+                        icon: Icon(Icons.groups_outlined),
+                        selectedIcon: _SelectedNavIcon(Icons.groups_rounded),
+                        label: 'Verein',
                       ),
                     ],
                   ),
@@ -290,4 +409,24 @@ class _AppShellState extends State<AppShell> {
       ),
     );
   }
+}
+
+class _MembershipFeature extends StatelessWidget {
+  const _MembershipFeature({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppColors.red, size: 21),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text)),
+      ],
+    ),
+  );
 }
