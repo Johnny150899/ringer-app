@@ -728,14 +728,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               ),
           ],
         ),
-        if (!showMemberView) ...[
-          const SizedBox(height: 3),
-          const Text(
-            'Unsere wöchentlichen Trainingszeiten.',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-        ],
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         if (showMemberView) ...[
           _MonthSelector(
             label: '${_months[_visibleMonth.month - 1]} ${_visibleMonth.year}',

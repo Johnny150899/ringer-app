@@ -180,11 +180,6 @@ class _LeagueScreenState extends State<LeagueScreen> {
                 ),
                 const SizedBox(height: 12),
               ],
-              const Text(
-                'Tabellen, Ergebnisse und alle Begegnungen.',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 15),
               LeagueTeamSwitcher(
                 selectedIndex: config.teamIndex - 1,
                 onSelected: _selectTeam,

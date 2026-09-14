@@ -30,11 +30,9 @@ class _ClubScreenState extends State<ClubScreen> {
   _ClubPageData? _data;
   bool _isInitialLoading = true;
   bool _isRefreshing = false;
-  bool _savingNotifications = false;
   int _requestGeneration = 0;
   final Set<String> _busyActions = <String>{};
   final Map<String, Set<String>> _pollSelections = <String, Set<String>>{};
-  _NotificationPreferences? _notificationOverride;
   RealtimeChannel? _clubChannel;
   Timer? _reloadDebounce;
   late DateTime _visibleEventMonth;
@@ -330,23 +328,6 @@ class _ClubScreenState extends State<ClubScreen> {
         ),
       );
 
-  Future<void> _openNotificationSettings() {
-    final data = _data ?? _ClubPageData.empty();
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _NotificationSettingsSheet(
-        initialPreferences: _notificationOverride ?? data.notifications.data,
-        enabled: !_isInitialLoading && data.notifications.error == null,
-        error: _isInitialLoading
-            ? 'Einstellungen werden geladen.'
-            : data.notifications.error,
-        onSave: _saveNotifications,
-      ),
-    );
-  }
-
   Future<_ClubPoll?> _loadPoll() async {
     final response = await widget.supabaseClient
         .from('club_polls')
@@ -620,35 +601,6 @@ class _ClubScreenState extends State<ClubScreen> {
     }, 'Dein Eintrag wurde veröffentlicht.');
   }
 
-  Future<bool> _saveNotifications(_NotificationPreferences next) async {
-    if (_savingNotifications) return false;
-    final previous = _data?.notifications.data;
-    setState(() {
-      _savingNotifications = true;
-      _notificationOverride = next;
-    });
-    try {
-      await widget.supabaseClient
-          .from('club_notification_preferences')
-          .upsert(next.toMap(_requireUserId()), onConflict: 'user_id');
-      await _load();
-      if (!mounted) return true;
-      setState(() {
-        _savingNotifications = false;
-        _notificationOverride = null;
-      });
-      return true;
-    } catch (error) {
-      if (!mounted) return false;
-      setState(() {
-        _savingNotifications = false;
-        _notificationOverride = previous;
-      });
-      _showMessage(_friendlyError(error, 'Benachrichtigungen'));
-      return false;
-    }
-  }
-
   Future<void> _runAction(
     String key,
     Future<void> Function() action,
@@ -698,9 +650,6 @@ class _ClubScreenState extends State<ClubScreen> {
                 backgroundColor: Colors.transparent,
               ),
             ),
-          SliverToBoxAdapter(
-            child: _ClubHeader(onNotifications: _openNotificationSettings),
-          ),
           SliverToBoxAdapter(
             child: _SectionTitle(
               'Veranstaltungen',
@@ -807,13 +756,10 @@ class _ClubScreenState extends State<ClubScreen> {
           SliverToBoxAdapter(
             child: _SectionTitle(
               'Schwarzes Brett',
-              action: TextButton.icon(
-                onPressed: _busyActions.contains('create-board-post')
-                    ? null
-                    : _createBoardPost,
-                style: TextButton.styleFrom(foregroundColor: Colors.white),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Eintrag'),
+              action: _SectionAddButton(
+                tooltip: 'Eintrag erstellen',
+                busy: _busyActions.contains('create-board-post'),
+                onPressed: _createBoardPost,
               ),
             ),
           ),
@@ -846,38 +792,6 @@ class _ClubScreenState extends State<ClubScreen> {
       ),
     );
   }
-}
-
-class _ClubHeader extends StatelessWidget {
-  const _ClubHeader({required this.onNotifications});
-
-  final VoidCallback onNotifications;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
-    child: Row(
-      children: [
-        const Expanded(
-          child: Text(
-            'Termine, Gemeinschaft und alles Wichtige für Mitglieder.',
-            style: TextStyle(color: Colors.white70),
-          ),
-        ),
-        const SizedBox(width: 10),
-        IconButton(
-          tooltip: 'Benachrichtigungen',
-          onPressed: onNotifications,
-          style: IconButton.styleFrom(
-            foregroundColor: Colors.white,
-            backgroundColor: Colors.white.withValues(alpha: .12),
-            side: const BorderSide(color: Colors.white24),
-          ),
-          icon: const Icon(Icons.notifications_outlined),
-        ),
-      ],
-    ),
-  );
 }
 
 class _SectionTitle extends StatelessWidget {

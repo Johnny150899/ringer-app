@@ -442,12 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _AnnouncementCard(announcement: _announcement!),
                     const SizedBox(height: 14),
                   ],
-                  const Text(
-                    'Alle Termine des KSC Olympia auf einen Blick.',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
                   if (nextMatch != null) ...[
-                    const SizedBox(height: 18),
                     const _SectionTitle(title: 'Nächster Kampf'),
                     const SizedBox(height: 12),
                     _FeaturedMatchCard(
