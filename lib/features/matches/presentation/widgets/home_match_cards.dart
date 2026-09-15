@@ -24,19 +24,15 @@ class _MatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: AppDesign.cardGap),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppDesign.radiusCard),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .95),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white),
-            ),
+            padding: AppDesign.cardPadding,
+            decoration: AppDesign.cardDecoration,
             child: Column(
               children: [
                 _TeamsRow(

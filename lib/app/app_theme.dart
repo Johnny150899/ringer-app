@@ -23,8 +23,17 @@ abstract final class AppDesign {
   static const radiusSmall = 12.0;
   static const radiusMedium = 18.0;
   static const radiusLarge = 24.0;
+  static const radiusCard = 20.0;
   static const pagePadding = 18.0;
   static const controlHeight = 48.0;
+  static const cardGap = 12.0;
+  static const cardPadding = EdgeInsets.all(16);
+
+  static BoxDecoration get cardDecoration => BoxDecoration(
+    color: Colors.white.withValues(alpha: .97),
+    borderRadius: BorderRadius.circular(radiusCard),
+    border: Border.all(color: Colors.white),
+  );
 }
 
 abstract final class AppTheme {
@@ -96,11 +105,11 @@ abstract final class AppTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
-        color: AppColors.surface,
+        color: Colors.white,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDesign.radiusLarge),
-          side: const BorderSide(color: AppColors.outline),
+          borderRadius: BorderRadius.circular(AppDesign.radiusCard),
+          side: const BorderSide(color: Colors.white),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(

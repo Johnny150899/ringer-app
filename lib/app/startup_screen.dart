@@ -3,6 +3,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/constants/club_logos.dart';
+import '../features/auth/data/services/user_access_service.dart';
+import '../features/matches/data/services/ligadb_service.dart';
+import '../features/matches/domain/models/team_match.dart';
 import 'initialize_app.dart';
 import 'app.dart';
 import 'app_theme.dart';
@@ -15,8 +18,11 @@ class StartupScreen extends StatefulWidget {
 }
 
 class _StartupScreenState extends State<StartupScreen> {
+  static const _maximumPrefetchWait = Duration(seconds: 3);
   bool _ready = false;
   bool _failed = false;
+  UserAccessService? _userAccessService;
+  Future<List<TeamMatch>>? _firstTeamMatchesFuture;
 
   @override
   void initState() {
@@ -28,6 +34,22 @@ class _StartupScreenState extends State<StartupScreen> {
     setState(() => _failed = false);
     try {
       await initializeApp();
+      final client = Supabase.instance.client;
+      final accessService = UserAccessService(client);
+      final matchesFuture = LigaDbService().getFirstTeamMatches();
+      _userAccessService = accessService;
+      _firstTeamMatchesFuture = matchesFuture;
+
+      // Vorladen und späteres Anzeigen verwenden dieselben Requests. Ein
+      // langsamer oder fehlgeschlagener Dienst hält die App nicht fest.
+      final prefetch = Future.wait<void>([
+        accessService.load().then<void>((_) {}).catchError((Object _) {}),
+        matchesFuture.then<void>((_) {}).catchError((Object _) {}),
+      ]);
+      await Future.any<void>([
+        prefetch,
+        Future<void>.delayed(_maximumPrefetchWait),
+      ]);
       if (mounted) setState(() => _ready = true);
     } catch (_) {
       if (mounted) setState(() => _failed = true);
@@ -37,7 +59,11 @@ class _StartupScreenState extends State<StartupScreen> {
   @override
   Widget build(BuildContext context) {
     if (_ready) {
-      return RingerApp(supabaseClient: Supabase.instance.client);
+      return RingerApp(
+        supabaseClient: Supabase.instance.client,
+        userAccessService: _userAccessService,
+        firstTeamMatchesFuture: _firstTeamMatchesFuture,
+      );
     }
     return MaterialApp(
       locale: const Locale('de', 'DE'),

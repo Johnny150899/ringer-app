@@ -844,10 +844,10 @@ class _TrialTrainingOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 14),
+    margin: const EdgeInsets.only(bottom: AppDesign.cardGap),
     child: Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppDesign.radiusCard),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.of(context).push(
@@ -859,21 +859,24 @@ class _TrialTrainingOverviewCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(11),
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.red.withValues(alpha: .1),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppDesign.radiusSmall),
                 ),
                 child: const Icon(
                   Icons.sports_kabaddi_rounded,
                   color: AppColors.red,
+                  size: 20,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -881,25 +884,24 @@ class _TrialTrainingOverviewCard extends StatelessWidget {
                     Text(
                       'Probetrainings',
                       style: TextStyle(
-                        fontSize: 17,
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    SizedBox(height: 3),
+                    SizedBox(height: 1),
                     Text(
-                      'Anfragen prüfen und Teilnahmen bis 4/4 erfassen',
+                      'Anfragen & Teilnahmen',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: AppColors.muted, fontSize: 12),
                     ),
                   ],
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.all(12),
-                child: Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 17,
-                  color: AppColors.navy,
-                ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 22,
+                color: AppColors.navy,
               ),
             ],
           ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../app/app_theme.dart';
 import '../../../../core/constants/club_logos.dart';
 import '../../../../core/widgets/app_glass_surface.dart';
 import '../../data/services/ligadb_service.dart';
@@ -16,14 +16,12 @@ class HomeScreen extends StatefulWidget {
     super.key,
     this.matchesOverride,
     this.nowOverride,
-    this.supabaseClient,
-    this.canManageAnnouncements = false,
+    this.firstTeamMatchesFuture,
   });
 
   final List<dynamic>? matchesOverride;
   final DateTime? nowOverride;
-  final SupabaseClient? supabaseClient;
-  final bool canManageAnnouncements;
+  final Future<List<TeamMatch>>? firstTeamMatchesFuture;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -48,187 +46,20 @@ class _HomeScreenState extends State<HomeScreen> {
   late final LigaDbService _service;
   late final List<Future<List<dynamic>>?> _teamMatches;
   int _selectedTeam = 0;
-  Map<String, dynamic>? _announcement;
 
   @override
   void initState() {
     super.initState();
     _service = LigaDbService();
     _teamMatches = widget.matchesOverride == null
-        ? [_service.getFirstTeamMatches(), null]
+        ? [
+            widget.firstTeamMatchesFuture ?? _service.getFirstTeamMatches(),
+            null,
+          ]
         : [
             Future.value(widget.matchesOverride),
             Future.value(widget.matchesOverride),
           ];
-    _loadAnnouncement();
-  }
-
-  Future<void> _loadAnnouncement() async {
-    final client = widget.supabaseClient;
-    if (client == null) return;
-    try {
-      final row = await client
-          .from('club_announcements')
-          .select('id, title, message, expires_at')
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-      if (mounted) setState(() => _announcement = row);
-    } on PostgrestException {
-      // Die Home-Seite bleibt bis zur Migration ohne Meldung nutzbar.
-    }
-  }
-
-  Future<void> _manageAnnouncement() async {
-    final titleController = TextEditingController(
-      text: _announcement?['title'] as String? ?? '',
-    );
-    final messageController = TextEditingController(
-      text: _announcement?['message'] as String? ?? '',
-    );
-    final currentExpiry = DateTime.tryParse(
-      _announcement?['expires_at'] as String? ?? '',
-    );
-    final remainingDays = currentExpiry
-        ?.difference(DateTime.now())
-        .inHours
-        .clamp(1, 24 * 30);
-    int? durationDays = currentExpiry == null
-        ? 14
-        : remainingDays! <= 24
-        ? 1
-        : remainingDays <= 72
-        ? 3
-        : remainingDays <= 168
-        ? 7
-        : remainingDays <= 336
-        ? 14
-        : 30;
-    final formKey = GlobalKey<FormState>();
-    final action = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          icon: const Icon(Icons.campaign_rounded, color: Color(0xFFE90046)),
-          title: Text(
-            _announcement == null ? 'Vereinsmeldung' : 'Meldung bearbeiten',
-          ),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: titleController,
-                  maxLength: 80,
-                  decoration: const InputDecoration(labelText: 'Überschrift'),
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? 'Bitte eine Überschrift eingeben.'
-                      : null,
-                ),
-                TextFormField(
-                  controller: messageController,
-                  maxLength: 500,
-                  maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Mitteilung'),
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? 'Bitte eine Mitteilung eingeben.'
-                      : null,
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<int?>(
-                  initialValue: durationDays,
-                  decoration: const InputDecoration(
-                    labelText: 'Wie lange anzeigen?',
-                    prefixIcon: Icon(Icons.schedule_rounded),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 1, child: Text('1 Tag')),
-                    DropdownMenuItem(value: 3, child: Text('3 Tage')),
-                    DropdownMenuItem(value: 7, child: Text('7 Tage')),
-                    DropdownMenuItem(value: 14, child: Text('14 Tage')),
-                    DropdownMenuItem(value: 30, child: Text('30 Tage')),
-                    DropdownMenuItem(value: null, child: Text('Ohne Ablauf')),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => durationDays = value),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            if (_announcement != null)
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, 'delete'),
-                child: const Text('Löschen'),
-              ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  Navigator.pop(dialogContext, 'save');
-                }
-              },
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (action == null || !mounted) {
-      titleController.dispose();
-      messageController.dispose();
-      return;
-    }
-    try {
-      final client = widget.supabaseClient!;
-      if (action == 'delete') {
-        await client
-            .from('club_announcements')
-            .delete()
-            .eq('id', _announcement!['id']);
-      } else {
-        final values = {
-          'title': titleController.text.trim(),
-          'message': messageController.text.trim(),
-          'expires_at': durationDays == null
-              ? null
-              : DateTime.now()
-                    .add(Duration(days: durationDays!))
-                    .toUtc()
-                    .toIso8601String(),
-        };
-        if (_announcement == null) {
-          await client.from('club_announcements').insert({
-            ...values,
-            'created_by': client.auth.currentUser!.id,
-          });
-        } else {
-          await client
-              .from('club_announcements')
-              .update(values)
-              .eq('id', _announcement!['id']);
-        }
-      }
-      if (mounted) {
-        setState(() => _announcement = null);
-        await _loadAnnouncement();
-      }
-    } on PostgrestException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Meldung nicht gespeichert: ${error.message}'),
-          ),
-        );
-      }
-    } finally {
-      titleController.dispose();
-      messageController.dispose();
-    }
   }
 
   void _selectTeam(int index) {
@@ -317,15 +148,6 @@ class _HomeScreenState extends State<HomeScreen> {
         '${_score(match['PunkteGastWertung'])}';
   }
 
-  ButtonStyle _announcementButtonStyle() {
-    return OutlinedButton.styleFrom(
-      foregroundColor: Colors.white,
-      side: const BorderSide(color: Colors.white38),
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-    );
-  }
-
   String _homeLogo(dynamic match) {
     final name = _homeName(match);
     return ClubLogos.forClub(
@@ -353,6 +175,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _retryMatches() {
+    setState(() {
+      _teamMatches[_selectedTeam] = _selectedTeam == 0
+          ? _service.getFirstTeamMatches()
+          : _service.getSecondTeamMatches();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -364,27 +194,6 @@ class _HomeScreenState extends State<HomeScreen> {
             onSelected: _selectTeam,
           ),
         ),
-        if (widget.canManageAnnouncements)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 7, 16, 0),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(
-                onPressed: _manageAnnouncement,
-                style: _announcementButtonStyle(),
-                icon: const Icon(Icons.campaign_rounded, size: 16),
-                label: Text(
-                  _announcement == null
-                      ? 'Meldung erstellen'
-                      : 'Meldung bearbeiten',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
         Expanded(
           child: FutureBuilder<List<dynamic>>(
             future: _teamMatches[_selectedTeam]!,
@@ -398,9 +207,10 @@ class _HomeScreenState extends State<HomeScreen> {
               }
 
               if (snapshot.hasError) {
-                return const _StatusView(
+                return _StatusView(
                   icon: Icons.cloud_off_rounded,
                   message: 'Die Kämpfe konnten nicht geladen werden.',
+                  onRetry: _retryMatches,
                 );
               }
 
@@ -438,10 +248,6 @@ class _HomeScreenState extends State<HomeScreen> {
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 96),
                 children: [
-                  if (_announcement != null) ...[
-                    _AnnouncementCard(announcement: _announcement!),
-                    const SizedBox(height: 14),
-                  ],
                   if (nextMatch != null) ...[
                     const _SectionTitle(title: 'Nächster Kampf'),
                     const SizedBox(height: 12),

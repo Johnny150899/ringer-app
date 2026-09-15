@@ -9,6 +9,8 @@ import '../features/auth/data/services/user_access_service.dart';
 import '../features/auth/presentation/screens/account_gate_screen.dart';
 import '../features/auth/presentation/screens/user_management_screen.dart';
 import '../features/league/presentation/screens/league_screen.dart';
+import '../features/legal/presentation/screens/legal_screen.dart';
+import '../features/matches/domain/models/team_match.dart';
 import '../features/matches/presentation/screens/home_screen.dart';
 import '../features/news/presentation/screens/news_screen.dart';
 import '../features/training/presentation/screens/training_screen.dart';
@@ -17,9 +19,16 @@ import 'app_theme.dart';
 part 'widgets/app_shell_widgets.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.supabaseClient});
+  const AppShell({
+    super.key,
+    this.supabaseClient,
+    this.userAccessService,
+    this.firstTeamMatchesFuture,
+  });
 
   final SupabaseClient? supabaseClient;
+  final UserAccessService? userAccessService;
+  final Future<List<TeamMatch>>? firstTeamMatchesFuture;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -49,7 +58,10 @@ class _AppShellState extends State<AppShell> {
     super.initState();
     _isAuthenticated = widget.supabaseClient?.auth.currentSession != null;
     final client = widget.supabaseClient;
-    if (client != null) _userAccessService = UserAccessService(client);
+    if (client != null) {
+      _userAccessService =
+          widget.userAccessService ?? UserAccessService(client);
+    }
     _subscribeToProfileChanges();
     _refreshPermissions();
     _authSubscription = widget.supabaseClient?.auth.onAuthStateChange.listen((
@@ -99,7 +111,7 @@ class _AppShellState extends State<AppShell> {
         });
         _showMembershipWelcomeIfNeeded(access);
       }
-    } on PostgrestException {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _role = 'fan';
@@ -239,6 +251,12 @@ class _AppShellState extends State<AppShell> {
     await _refreshPermissions(force: true);
   }
 
+  void _openLegalHub() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const LegalHubScreen()));
+  }
+
   Future<void> _openMembershipRequests() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const MembershipRequestsScreen()),
@@ -260,10 +278,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final screens = <Widget>[
-      HomeScreen(
-        supabaseClient: widget.supabaseClient,
-        canManageAnnouncements: _canReviewMemberships,
-      ),
+      HomeScreen(firstTeamMatchesFuture: widget.firstTeamMatchesFuture),
       _visitedTabs.contains(1)
           ? TrainingScreen(
               memberAccess: _hasMemberAccess,
@@ -314,6 +329,7 @@ class _AppShellState extends State<AppShell> {
                 canManageUsers: _canReviewMemberships,
                 pendingMembershipCount: _pendingMembershipCount,
                 onAccountTap: _openAccount,
+                onLegalTap: _openLegalHub,
                 onMembershipRequestsTap: _openMembershipRequests,
                 onUserManagementTap: _openUserManagement,
               ),

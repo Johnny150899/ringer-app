@@ -350,6 +350,8 @@ class _AccountScreenState extends State<_AccountScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                const LegalLinks(),
               ],
             );
           },

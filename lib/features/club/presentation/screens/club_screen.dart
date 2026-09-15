@@ -39,6 +39,15 @@ class _ClubScreenState extends State<ClubScreen> {
   DateTime? _selectedEventDate;
   bool _eventsLoading = false;
   int _eventRequestGeneration = 0;
+  bool _calendarExpanded = false;
+  bool _boardExpanded = false;
+
+  bool get _isAdmin => widget.role.trim().toLowerCase() == 'admin';
+
+  bool _canDelete(String authorId) {
+    final userId = widget.supabaseClient.auth.currentUser?.id;
+    return userId != null && (_isAdmin || authorId == userId);
+  }
 
   bool get _canManageClub {
     final role = widget.role.trim().toLowerCase();
@@ -331,7 +340,9 @@ class _ClubScreenState extends State<ClubScreen> {
   Future<_ClubPoll?> _loadPoll() async {
     final response = await widget.supabaseClient
         .from('club_polls')
-        .select('id,question,description,allow_multiple,closes_at,created_at')
+        .select(
+          'id,question,description,allow_multiple,closes_at,created_at,created_by',
+        )
         .eq('is_published', true)
         .order('created_at', ascending: false)
         .limit(10);
@@ -368,6 +379,7 @@ class _ClubScreenState extends State<ClubScreen> {
 
     return _ClubPoll(
       id: pollId,
+      authorId: _string(current['created_by']),
       question: _string(current['question'], fallback: 'Aktuelle Umfrage'),
       description: _string(current['description']),
       allowMultiple: current['allow_multiple'] == true,
@@ -601,6 +613,47 @@ class _ClubScreenState extends State<ClubScreen> {
     }, 'Dein Eintrag wurde veröffentlicht.');
   }
 
+  Future<void> _deleteClubItem({
+    required String table,
+    required String id,
+    required String authorId,
+    required String label,
+  }) async {
+    if (!_canDelete(authorId)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('$label löschen?'),
+        content: Text(
+          'Der $label und zugehörige Daten werden dauerhaft entfernt.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _runAction('delete:$table:$id', () async {
+      final deleted = await widget.supabaseClient
+          .from(table)
+          .delete()
+          .eq('id', id)
+          .select('id');
+      if ((deleted as List).isEmpty) {
+        throw StateError(
+          'Keine Berechtigung zum Löschen oder Eintrag nicht gefunden.',
+        );
+      }
+    }, '$label wurde gelöscht.');
+  }
+
   Future<void> _runAction(
     String key,
     Future<void> Function() action,
@@ -635,6 +688,14 @@ class _ClubScreenState extends State<ClubScreen> {
   Widget build(BuildContext context) {
     final data = _data ?? _ClubPageData.empty();
     final selectedEvents = _eventsForSelectedDate(data.events.data);
+    final now = DateTime.now();
+    final upcomingEvents = data.events.data
+        .where((event) => !event.startsAt.isBefore(now))
+        .toList(growable: false);
+    final boardPosts = data.board.data.posts;
+    final visibleBoardPosts = _boardExpanded
+        ? boardPosts
+        : boardPosts.take(3).toList(growable: false);
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -652,58 +713,97 @@ class _ClubScreenState extends State<ClubScreen> {
             ),
           SliverToBoxAdapter(
             child: _SectionTitle(
-              'Veranstaltungen',
-              action: _canManageClub
-                  ? _SectionAddButton(
+              'Als Nächstes',
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton.icon(
+                    onPressed: () =>
+                        setState(() => _calendarExpanded = !_calendarExpanded),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    icon: Icon(
+                      _calendarExpanded
+                          ? Icons.expand_less_rounded
+                          : Icons.calendar_month_rounded,
+                      size: 18,
+                    ),
+                    label: Text(_calendarExpanded ? 'Schließen' : 'Kalender'),
+                  ),
+                  if (_canManageClub)
+                    _SectionAddButton(
                       tooltip: 'Veranstaltung erstellen',
                       busy: _busyActions.contains('create-event'),
                       onPressed: _createEvent,
-                    )
-                  : null,
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            sliver: SliverToBoxAdapter(
-              child: _EventCalendar(
-                month: _visibleEventMonth,
-                selectedDate: _selectedEventDate,
-                events: data.events.data,
-                loading: _eventsLoading || _isInitialLoading,
-                onPreviousMonth: () => _changeEventMonth(-1),
-                onNextMonth: () => _changeEventMonth(1),
-                onDateSelected: (date) =>
-                    setState(() => _selectedEventDate = date),
+                    ),
+                ],
               ),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
           if (data.events.error != null)
-            SliverToBoxAdapter(child: _InlineError(data.events.error!)),
-          if (data.events.error == null && selectedEvents.isEmpty)
-            SliverToBoxAdapter(
+            SliverToBoxAdapter(child: _InlineError(data.events.error!))
+          else if (upcomingEvents.isEmpty)
+            const SliverToBoxAdapter(
               child: _EmptyCard(
                 icon: Icons.event_available_outlined,
-                text: data.events.data.isEmpty
-                    ? 'In diesem Monat gibt es keine Veranstaltungen.'
-                    : 'An diesem Tag gibt es keine Veranstaltung.',
+                text: 'In diesem Monat steht kein weiterer Termin an.',
               ),
             )
-          else if (data.events.error == null)
+          else
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
-              sliver: SliverList.separated(
-                itemCount: selectedEvents.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final event = selectedEvents[index];
-                  return _EventListTile(
-                    event: event,
-                    onTap: () => _openEventDetails(event),
-                  );
-                },
+              sliver: SliverToBoxAdapter(
+                child: _EventListTile(
+                  event: upcomingEvents.first,
+                  onTap: () => _openEventDetails(upcomingEvents.first),
+                ),
               ),
             ),
+          if (_calendarExpanded) ...[
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              sliver: SliverToBoxAdapter(
+                child: _EventCalendar(
+                  month: _visibleEventMonth,
+                  selectedDate: _selectedEventDate,
+                  events: data.events.data,
+                  loading: _eventsLoading || _isInitialLoading,
+                  onPreviousMonth: () => _changeEventMonth(-1),
+                  onNextMonth: () => _changeEventMonth(1),
+                  onDateSelected: (date) =>
+                      setState(() => _selectedEventDate = date),
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            if (data.events.error == null && selectedEvents.isEmpty)
+              SliverToBoxAdapter(
+                child: _EmptyCard(
+                  icon: Icons.event_available_outlined,
+                  text: data.events.data.isEmpty
+                      ? 'In diesem Monat gibt es keine Veranstaltungen.'
+                      : 'An diesem Tag gibt es keine Veranstaltung.',
+                ),
+              )
+            else if (data.events.error == null)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                sliver: SliverList.separated(
+                  itemCount: selectedEvents.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final event = selectedEvents[index];
+                    return _EventListTile(
+                      event: event,
+                      onTap: () => _openEventDetails(event),
+                    );
+                  },
+                ),
+              ),
+          ],
           SliverToBoxAdapter(
             child: _SectionTitle(
               'Aktuelle Umfrage',
@@ -731,6 +831,14 @@ class _ClubScreenState extends State<ClubScreen> {
               sliver: SliverToBoxAdapter(
                 child: _PollCard(
                   poll: data.poll.data!,
+                  onDelete: _canDelete(data.poll.data!.authorId)
+                      ? () => _deleteClubItem(
+                          table: 'club_polls',
+                          id: data.poll.data!.id,
+                          authorId: data.poll.data!.authorId,
+                          label: 'Umfrage',
+                        )
+                      : null,
                   selection:
                       _pollSelections[data.poll.data!.id] ??
                       data.poll.data!.votedOptionIds,
@@ -776,15 +884,38 @@ class _ClubScreenState extends State<ClubScreen> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               sliver: SliverList.separated(
-                itemCount: data.board.data.posts.length,
+                itemCount: visibleBoardPosts.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (_, index) {
-                  final post = data.board.data.posts[index];
+                  final post = visibleBoardPosts[index];
                   return _BoardPostCard(
                     post: post,
                     authorName: data.board.data.authorNames[post.authorId],
+                    onDelete: _canDelete(post.authorId)
+                        ? () => _deleteClubItem(
+                            table: 'club_board_posts',
+                            id: post.id,
+                            authorId: post.authorId,
+                            label: 'Eintrag',
+                          )
+                        : null,
                   );
                 },
+              ),
+            ),
+          if (boardPosts.length > 3)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: TextButton(
+                  onPressed: () =>
+                      setState(() => _boardExpanded = !_boardExpanded),
+                  child: Text(
+                    _boardExpanded
+                        ? 'Weniger anzeigen'
+                        : 'Alle Einträge anzeigen',
+                  ),
+                ),
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 112)),
@@ -1423,6 +1554,7 @@ class _EventCard extends StatelessWidget {
 class _PollCard extends StatelessWidget {
   const _PollCard({
     required this.poll,
+    this.onDelete,
     required this.selection,
     required this.busy,
     required this.onOptionTap,
@@ -1430,6 +1562,7 @@ class _PollCard extends StatelessWidget {
   });
 
   final _ClubPoll poll;
+  final VoidCallback? onDelete;
   final Set<String> selection;
   final bool busy;
   final ValueChanged<String> onOptionTap;
@@ -1461,6 +1594,12 @@ class _PollCard extends StatelessWidget {
                 ),
               ),
             ),
+            if (onDelete != null)
+              IconButton(
+                tooltip: 'Umfrage löschen',
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
           ],
         ),
         if (poll.description.isNotEmpty) ...[
@@ -1547,10 +1686,15 @@ class _PollCard extends StatelessWidget {
 }
 
 class _BoardPostCard extends StatelessWidget {
-  const _BoardPostCard({required this.post, required this.authorName});
+  const _BoardPostCard({
+    required this.post,
+    required this.authorName,
+    this.onDelete,
+  });
 
   final _BoardPost post;
   final String? authorName;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1582,6 +1726,12 @@ class _BoardPostCard extends StatelessWidget {
               ),
             ),
             _SmallBadge(post.category),
+            if (onDelete != null)
+              IconButton(
+                tooltip: 'Eintrag löschen',
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
           ],
         ),
         if (post.body.isNotEmpty) ...[
@@ -2331,6 +2481,7 @@ class _ClubEvent {
 class _ClubPoll {
   const _ClubPoll({
     required this.id,
+    required this.authorId,
     required this.question,
     required this.description,
     required this.allowMultiple,
@@ -2340,6 +2491,7 @@ class _ClubPoll {
   });
 
   final String id;
+  final String authorId;
   final String question;
   final String description;
   final bool allowMultiple;

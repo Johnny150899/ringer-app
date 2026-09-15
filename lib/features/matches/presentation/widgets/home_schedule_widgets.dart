@@ -137,11 +137,13 @@ class _StatusView extends StatelessWidget {
     required this.icon,
     required this.message,
     this.loading = false,
+    this.onRetry,
   });
 
   final IconData icon;
   final String message;
   final bool loading;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -165,6 +167,14 @@ class _StatusView extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: onRetry,
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
+                child: const Text('Erneut versuchen'),
+              ),
+            ],
           ],
         ),
       ),

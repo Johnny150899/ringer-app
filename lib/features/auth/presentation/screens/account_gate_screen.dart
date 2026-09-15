@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../legal/presentation/screens/legal_screen.dart';
 import '../../../club/presentation/screens/club_screen.dart';
 import '../../../training/presentation/screens/trial_training_screen.dart';
 import '../../../training/presentation/screens/trial_requests_panel.dart';
@@ -297,6 +298,8 @@ class _AuthScreenState extends State<_AuthScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 18),
+              const LegalLinks(),
             ],
           ),
         ),

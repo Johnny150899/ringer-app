@@ -18,13 +18,9 @@ class _TrainingGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .96),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white),
-      ),
+      margin: const EdgeInsets.only(bottom: AppDesign.cardGap),
+      padding: AppDesign.cardPadding,
+      decoration: AppDesign.cardDecoration,
       child: Column(
         children: [
           Row(

@@ -313,12 +313,8 @@ class _LeagueSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .96),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white),
-      ),
+      padding: AppDesign.cardPadding,
+      decoration: AppDesign.cardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -490,11 +486,7 @@ class _StandingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .96),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white),
-      ),
+      decoration: AppDesign.cardDecoration,
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [

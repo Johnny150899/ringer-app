@@ -271,7 +271,7 @@ class _TrialRequestsPanelState extends State<TrialRequestsPanel> {
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
-              ...visibleRows.map((row) => _card(row)),
+              ...visibleRows.map(_card),
             ],
           ),
         );
@@ -279,20 +279,22 @@ class _TrialRequestsPanelState extends State<TrialRequestsPanel> {
     ),
   );
 
-  Widget _card(Map<String, dynamic> row, {bool detailsOnly = false}) {
-    if (widget.staff && _showArchive && !detailsOnly) {
+  Widget _card(Map<String, dynamic> row) {
+    if (widget.staff && _showArchive) {
       return Card(
         color: Colors.white,
         elevation: 0,
         clipBehavior: Clip.antiAlias,
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: AppDesign.cardGap),
         child: ExpansionTile(
-          key: PageStorageKey('trial-archive-${row['id']}'),
+          key: PageStorageKey('trial-archive-compact-${row['id']}'),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
           title: Text(
             row['full_name'] as String? ?? '',
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
-          children: [_card(row, detailsOnly: true)],
+          children: [_archiveDetails(row)],
         ),
       );
     }
@@ -323,49 +325,47 @@ class _TrialRequestsPanelState extends State<TrialRequestsPanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!detailsOnly)
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.red.withValues(alpha: .08),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.sports_kabaddi_rounded,
-                      color: AppColors.red,
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.red.withValues(alpha: .08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.sports_kabaddi_rounded,
+                    color: AppColors.red,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    row['full_name'] as String,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      row['full_name'] as String,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  if (widget.staff &&
-                      (status == 'open' || status == 'contacted'))
-                    PopupMenuButton<String>(
-                      tooltip: 'Weitere Aktionen',
-                      enabled: !_busy,
-                      onSelected: (value) => _act(row, value),
-                      itemBuilder: (_) => [
-                        PopupMenuItem(
-                          value: 'reject',
-                          child: Text(
-                            status == 'open'
-                                ? 'Anfrage ablehnen'
-                                : 'Probetraining beenden',
-                          ),
+                ),
+                if (widget.staff && (status == 'open' || status == 'contacted'))
+                  PopupMenuButton<String>(
+                    tooltip: 'Weitere Aktionen',
+                    enabled: !_busy,
+                    onSelected: (value) => _act(row, value),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'reject',
+                        child: Text(
+                          status == 'open'
+                              ? 'Anfrage ablehnen'
+                              : 'Probetraining beenden',
                         ),
-                      ],
-                    ),
-                ],
-              ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
             const SizedBox(height: 12),
             Text(
               '${row['training_group']} · Anfrage vom ${_date(row['created_at'] as String)}',
@@ -511,6 +511,84 @@ class _TrialRequestsPanelState extends State<TrialRequestsPanel> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _archiveDetails(Map<String, dynamic> row) {
+    final visits =
+        List<Map<String, dynamic>>.from(
+          row['trial_training_visits'] as List? ?? [],
+        )..sort(
+          (a, b) => (a['attended_on'] as String).compareTo(
+            b['attended_on'] as String,
+          ),
+        );
+    final completedCount = visits
+        .where((visit) => visit['voided_at'] == null)
+        .length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+        Text(
+          '${row['training_group']} · Anfrage vom ${_date(row['created_at'] as String)}',
+          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '$completedCount / 4 Probetrainings absolviert',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        if (row['note'] != null) ...[
+          const SizedBox(height: 8),
+          Text('Nachricht: ${row['note']}'),
+        ],
+        if (visits.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'Teilnahmen',
+            style: TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          for (final visit in visits)
+            SizedBox(
+              height: 40,
+              child: Row(
+                children: [
+                  Icon(
+                    visit['voided_at'] == null
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.undo_rounded,
+                    size: 19,
+                    color: visit['voided_at'] == null
+                        ? AppColors.success
+                        : AppColors.muted,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _date(visit['attended_on'] as String),
+                      style: TextStyle(
+                        color: visit['voided_at'] == null
+                            ? AppColors.text
+                            : AppColors.muted,
+                      ),
+                    ),
+                  ),
+                  if (visit['voided_at'] == null)
+                    IconButton(
+                      tooltip: 'Fehleintrag korrigieren',
+                      onPressed: _busy
+                          ? null
+                          : () =>
+                                _act(row, 'undo', visitId: visit['id'] as int),
+                      icon: const Icon(Icons.undo_rounded, size: 19),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ],
     );
   }
 }

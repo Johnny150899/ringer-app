@@ -36,6 +36,7 @@ class _AppHeader extends StatelessWidget {
     required this.canManageUsers,
     required this.pendingMembershipCount,
     required this.onAccountTap,
+    required this.onLegalTap,
     required this.onMembershipRequestsTap,
     required this.onUserManagementTap,
   });
@@ -46,6 +47,7 @@ class _AppHeader extends StatelessWidget {
   final bool canManageUsers;
   final int pendingMembershipCount;
   final VoidCallback onAccountTap;
+  final VoidCallback onLegalTap;
   final VoidCallback onMembershipRequestsTap;
   final VoidCallback onUserManagementTap;
 
@@ -85,50 +87,99 @@ class _AppHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: Colors.white.withValues(alpha: .16)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (canManageUsers) ...[
-                  _HeaderAction(
-                    key: const ValueKey('user-management-header-button'),
-                    tooltip: 'Benutzer verwalten',
-                    icon: Icons.manage_accounts_rounded,
-                    onTap: onUserManagementTap,
-                  ),
-                  const SizedBox(width: 3),
-                ],
-                if (canReviewMemberships) ...[
-                  _HeaderAction(
-                    key: const ValueKey('membership-requests-header-button'),
-                    tooltip: 'Anträge',
-                    icon: Icons.how_to_reg_rounded,
-                    onTap: onMembershipRequestsTap,
-                    badge: pendingMembershipCount > 0
-                        ? pendingMembershipCount
-                        : null,
-                  ),
-                  const SizedBox(width: 3),
-                ],
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (canManageUsers) ...[
                 _HeaderAction(
-                  key: const ValueKey('account-button'),
-                  tooltip: isAuthenticated ? 'Mein Konto' : 'Anmelden',
-                  icon: isAuthenticated ? Icons.person : Icons.person_outline,
-                  onTap: onAccountTap,
+                  key: const ValueKey('user-management-header-button'),
+                  tooltip: 'Benutzer verwalten',
+                  icon: Icons.manage_accounts_rounded,
+                  onTap: onUserManagementTap,
                 ),
+                const SizedBox(width: 5),
               ],
-            ),
+              if (canReviewMemberships) ...[
+                _HeaderAction(
+                  key: const ValueKey('membership-requests-header-button'),
+                  tooltip: 'Anträge',
+                  icon: Icons.how_to_reg_rounded,
+                  onTap: onMembershipRequestsTap,
+                  badge: pendingMembershipCount > 0
+                      ? pendingMembershipCount
+                      : null,
+                ),
+                const SizedBox(width: 5),
+              ],
+              _HeaderMenu(
+                isAuthenticated: isAuthenticated,
+                onAccountTap: onAccountTap,
+                onLegalTap: onLegalTap,
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+enum _HeaderMenuItem { account, legal }
+
+class _HeaderMenu extends StatelessWidget {
+  const _HeaderMenu({
+    required this.isAuthenticated,
+    required this.onAccountTap,
+    required this.onLegalTap,
+  });
+
+  final bool isAuthenticated;
+  final VoidCallback onAccountTap;
+  final VoidCallback onLegalTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white.withValues(alpha: .1),
+    shape: CircleBorder(
+      side: BorderSide(color: Colors.white.withValues(alpha: .18)),
+    ),
+    child: SizedBox.square(
+      dimension: 39,
+      child: PopupMenuButton<_HeaderMenuItem>(
+        key: const ValueKey('header-menu-button'),
+        tooltip: 'Menü: Konto und Rechtliches',
+        icon: const Icon(Icons.menu_rounded, color: Colors.white),
+        iconSize: 22,
+        padding: EdgeInsets.zero,
+        onSelected: (item) {
+          switch (item) {
+            case _HeaderMenuItem.account:
+              onAccountTap();
+            case _HeaderMenuItem.legal:
+              onLegalTap();
+          }
+        },
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: _HeaderMenuItem.account,
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.person_outline_rounded),
+              title: Text(isAuthenticated ? 'Mein Konto' : 'Anmelden'),
+            ),
+          ),
+          const PopupMenuItem(
+            value: _HeaderMenuItem.legal,
+            child: ListTile(
+              dense: true,
+              leading: Icon(Icons.info_outline_rounded),
+              title: Text('Info & Rechtliches'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _HeaderAction extends StatelessWidget {
@@ -151,7 +202,9 @@ class _HeaderAction extends StatelessWidget {
       message: tooltip,
       child: Material(
         color: Colors.white.withValues(alpha: .1),
-        shape: const CircleBorder(),
+        shape: CircleBorder(
+          side: BorderSide(color: Colors.white.withValues(alpha: .18)),
+        ),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,

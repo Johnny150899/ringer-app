@@ -1,54 +1,5 @@
 part of '../screens/home_screen.dart';
 
-class _AnnouncementCard extends StatelessWidget {
-  const _AnnouncementCard({required this.announcement});
-
-  final Map<String, dynamic> announcement;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF2F6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFB3C9)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.campaign_rounded, color: Color(0xFFE90046)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  announcement['title'] as String? ?? 'Vereinsmeldung',
-                  style: const TextStyle(
-                    color: Color(0xFF172033),
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  announcement['message'] as String? ?? '',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF5D6678),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _TeamSwitcher extends StatelessWidget {
   const _TeamSwitcher({required this.selectedIndex, required this.onSelected});
 
