@@ -5,6 +5,7 @@ import '../../domain/models/league_page_data.dart';
 import '../../domain/models/league_standing.dart';
 import '../../domain/models/league_team_config.dart';
 import 'league_cache_store.dart';
+import '../../../../core/data/offline_cache.dart';
 
 class LeagueService {
   LeagueService({LigaDbService? ligaDbService, LeagueCacheStore? cacheStore})
@@ -83,6 +84,7 @@ class LeagueService {
   final LigaDbService _ligaDbService;
   final LeagueCacheStore _cacheStore;
   final bool _ownsService;
+  final _metadataCache = OfflineCache();
   final Map<int, List<LeagueTeamConfig>> _resolvedSeasons = {};
   Future<List<int>>? _availableSeasonsRequest;
 
@@ -101,7 +103,11 @@ class LeagueService {
         leagueId: config.leagueId,
         teamId: config.teamId,
       );
-      await _cacheStore.saveOverview(config, overview);
+      try {
+        await _cacheStore.saveOverview(config, overview);
+      } catch (_) {
+        /* Fresh data remains usable without local storage. */
+      }
       return LeaguePageData(
         seasons: seasons,
         config: config,
@@ -123,11 +129,20 @@ class LeagueService {
     int? season,
     int teamIndex = 1,
   }) async {
-    final seasons = await availableSeasons();
+    final metadata = await _metadataCache.read('league.seasons.v1');
+    final latest = _fallbacks.keys.reduce((a, b) => a > b ? a : b);
+    final seasons =
+        metadata?.map((row) => row['season'] as int).toList() ??
+        List.generate(4, (index) => latest - index);
+    if (seasons.isEmpty) return null;
     final selectedSeason = season != null && seasons.contains(season)
         ? season
         : seasons.first;
-    final configs = await resolveSeason(selectedSeason);
+    final configs =
+        _resolvedSeasons[selectedSeason] ??
+        await _cacheStore.readConfigs(selectedSeason) ??
+        _fallbacks[selectedSeason];
+    if (configs == null || configs.isEmpty) return null;
     final config = configs.firstWhere(
       (item) => item.teamIndex == teamIndex,
       orElse: () => configs.first,
@@ -148,7 +163,12 @@ class LeagueService {
   Future<List<int>> _fetchAvailableSeasons() async {
     try {
       final current = await _ligaDbService.getCurrentSeason();
-      return List<int>.generate(4, (index) => current - index);
+      final seasons = List<int>.generate(4, (index) => current - index);
+      await _metadataCache.write(
+        'league.seasons.v1',
+        seasons.map((year) => {'season': year}).toList(),
+      );
+      return seasons;
     } on Object {
       final latestKnown = _fallbacks.keys.reduce(
         (latest, year) => year > latest ? year : latest,

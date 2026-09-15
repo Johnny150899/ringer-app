@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../core/data/offline_cache.dart';
 
 /// Interaktiver Vereinsbereich für bestätigte Vereinsmitglieder.
 ///
@@ -27,6 +28,8 @@ class ClubScreen extends StatefulWidget {
 }
 
 class _ClubScreenState extends State<ClubScreen> {
+  final _eventCache = OfflineCache();
+  bool _showingSavedEvents = false;
   _ClubPageData? _data;
   bool _isInitialLoading = true;
   bool _isRefreshing = false;
@@ -132,7 +135,25 @@ class _ClubScreenState extends State<ClubScreen> {
       });
     }
 
-    final loaded = await _fetchPageData(requestedEventMonth);
+    final pending = _fetchPageData(requestedEventMonth);
+    if (initial) {
+      final cachedMonth = await _readEventCache(requestedEventMonth);
+      final cachedNext = await _readEventCache();
+      if (mounted &&
+          generation == _requestGeneration &&
+          (cachedMonth != null || cachedNext != null)) {
+        setState(() {
+          _data = (_data ?? _ClubPageData.empty()).copyWith(
+            events: cachedMonth == null ? null : _Section(data: cachedMonth),
+            upcoming: cachedNext == null ? null : _Section(data: cachedNext),
+          );
+          _showingSavedEvents = true;
+          _isInitialLoading = false;
+          _isRefreshing = true;
+        });
+      }
+    }
+    final loaded = await pending;
     if (!mounted || generation != _requestGeneration) return;
     setState(() {
       final sameVisibleMonth = _isSameMonth(
@@ -144,6 +165,8 @@ class _ClubScreenState extends State<ClubScreen> {
           : loaded.copyWith(events: _data?.events);
       _isInitialLoading = false;
       _isRefreshing = false;
+      _showingSavedEvents =
+          loaded.events.error != null || loaded.upcoming.error != null;
       if (sameVisibleMonth) {
         _alignSelectedEventDate(loaded.events.data);
       }
@@ -153,11 +176,8 @@ class _ClubScreenState extends State<ClubScreen> {
   Future<_ClubPageData> _fetchPageData(DateTime eventMonth) async {
     // Alle Future-Aufrufe werden vor dem ersten await gestartet und laden damit
     // parallel. Ein Fehler in einer Sektion blockiert die anderen nicht.
-    final events = _safeSection(
-      () => _loadEvents(eventMonth),
-      const <_ClubEvent>[],
-      'Veranstaltungen',
-    );
+    final events = _loadEventSection(eventMonth);
+    final upcoming = _loadEventSection();
     final poll = _safeSection<_ClubPoll?>(_loadPoll, null, 'Umfrage');
     final board = _safeSection(
       _loadBoard,
@@ -172,6 +192,7 @@ class _ClubScreenState extends State<ClubScreen> {
 
     return _ClubPageData(
       events: await events,
+      upcoming: await upcoming,
       poll: await poll,
       board: await board,
       notifications: await notifications,
@@ -193,22 +214,63 @@ class _ClubScreenState extends State<ClubScreen> {
     }
   }
 
-  Future<List<_ClubEvent>> _loadEvents(DateTime eventMonth) async {
-    final monthStart = DateTime(eventMonth.year, eventMonth.month);
-    final monthEnd = DateTime(eventMonth.year, eventMonth.month + 1);
-    final response = await widget.supabaseClient
+  String? _eventCacheKey(DateTime? month) {
+    final userId = widget.supabaseClient.auth.currentUser?.id;
+    if (userId == null) return null;
+    return 'club.events.v1.$userId.${month == null ? 'next' : '${month.year}-${month.month}'}';
+  }
+
+  Future<List<_ClubEvent>?> _readEventCache([DateTime? month]) async {
+    final key = _eventCacheKey(month);
+    if (key == null) return null;
+    try {
+      final rows = await _eventCache.read(key);
+      return rows?.map(_ClubEvent.fromCache).toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<_Section<List<_ClubEvent>>> _loadEventSection([
+    DateTime? month,
+  ]) async {
+    final section = await _safeSection(
+      () => _loadEvents(month),
+      const <_ClubEvent>[],
+      'Vereinstermine',
+    );
+    if (section.error == null) return section;
+    final cached = await _readEventCache(month);
+    return _Section(data: cached ?? [], error: section.error);
+  }
+
+  // Without a month, fetch the next published event across all future months.
+  Future<List<_ClubEvent>> _loadEvents([DateTime? eventMonth]) async {
+    final cacheKey = _eventCacheKey(eventMonth);
+    final rangeStart = eventMonth == null
+        ? DateTime.now()
+        : DateTime(eventMonth.year, eventMonth.month);
+    var query = widget.supabaseClient
         .from('club_events')
         .select(
           'id,title,description,event_type,location,starts_at,ends_at,'
           'registration_deadline,participant_limit,helper_slots',
         )
         .eq('is_published', true)
-        .gte('starts_at', monthStart.toUtc().toIso8601String())
-        .lt('starts_at', monthEnd.toUtc().toIso8601String())
-        .order('starts_at')
-        .limit(200);
+        .gte('starts_at', rangeStart.toUtc().toIso8601String());
+    if (eventMonth != null) {
+      final monthEnd = DateTime(eventMonth.year, eventMonth.month + 1);
+      query = query.lt('starts_at', monthEnd.toUtc().toIso8601String());
+    }
+    final response = await query
+        .order('starts_at', ascending: true)
+        .order('id', ascending: true)
+        .limit(eventMonth == null ? 1 : 200);
     final rows = List<Map<String, dynamic>>.from(response);
-    if (rows.isEmpty) return const <_ClubEvent>[];
+    if (rows.isEmpty) {
+      if (cacheKey != null) await _eventCache.write(cacheKey, []);
+      return const <_ClubEvent>[];
+    }
 
     final eventIds = rows.map((row) => row['id'].toString()).toList();
     final registrationResponse = await widget.supabaseClient
@@ -218,7 +280,7 @@ class _ClubScreenState extends State<ClubScreen> {
     final registrations = List<Map<String, dynamic>>.from(registrationResponse);
     final userId = widget.supabaseClient.auth.currentUser?.id;
 
-    return rows
+    final result = rows
         .map((row) {
           final id = row['id'].toString();
           final forEvent = registrations.where(
@@ -239,7 +301,7 @@ class _ClubScreenState extends State<ClubScreen> {
             description: _string(row['description']),
             type: _eventTypeLabel(_string(row['event_type'], fallback: 'club')),
             location: _string(row['location']),
-            startsAt: _date(row['starts_at']) ?? monthStart,
+            startsAt: _date(row['starts_at']) ?? rangeStart,
             endsAt: _date(row['ends_at']),
             registrationDeadline: _date(row['registration_deadline']),
             participantLimit: _integer(row['participant_limit']),
@@ -258,6 +320,13 @@ class _ClubScreenState extends State<ClubScreen> {
           );
         })
         .toList(growable: false);
+    if (cacheKey != null) {
+      await _eventCache.write(
+        cacheKey,
+        result.map((event) => event.toCache()).toList(),
+      );
+    }
+    return result;
   }
 
   void _alignSelectedEventDate(List<_ClubEvent> events) {
@@ -298,11 +367,15 @@ class _ClubScreenState extends State<ClubScreen> {
     final generation = ++_eventRequestGeneration;
     final requestedMonth = _visibleEventMonth;
     setState(() => _eventsLoading = true);
-    final events = await _safeSection(
-      () => _loadEvents(requestedMonth),
-      const <_ClubEvent>[],
-      'Veranstaltungen',
-    );
+    final cached = await _readEventCache(requestedMonth);
+    if (mounted && generation == _eventRequestGeneration && cached != null) {
+      setState(
+        () => _data = (_data ?? _ClubPageData.empty()).copyWith(
+          events: _Section(data: cached),
+        ),
+      );
+    }
+    final events = await _loadEventSection(requestedMonth);
     if (!mounted || generation != _eventRequestGeneration) return;
     setState(() {
       if (_isSameMonth(requestedMonth, _visibleEventMonth)) {
@@ -688,10 +761,7 @@ class _ClubScreenState extends State<ClubScreen> {
   Widget build(BuildContext context) {
     final data = _data ?? _ClubPageData.empty();
     final selectedEvents = _eventsForSelectedDate(data.events.data);
-    final now = DateTime.now();
-    final upcomingEvents = data.events.data
-        .where((event) => !event.startsAt.isBefore(now))
-        .toList(growable: false);
+    final upcomingEvents = data.upcoming.data;
     final boardPosts = data.board.data.posts;
     final visibleBoardPosts = _boardExpanded
         ? boardPosts
@@ -703,6 +773,21 @@ class _ClubScreenState extends State<ClubScreen> {
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
+          if (_showingSavedEvents)
+            SliverToBoxAdapter(
+              child: TextButton(
+                onPressed: _isRefreshing ? null : _load,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  disabledForegroundColor: Colors.white70,
+                ),
+                child: Text(
+                  _isRefreshing
+                      ? 'Gespeicherte Termine · wird aktualisiert …'
+                      : 'Termine nicht aktualisiert · Erneut versuchen',
+                ),
+              ),
+            ),
           if (_isRefreshing || _isInitialLoading)
             const SliverToBoxAdapter(
               child: LinearProgressIndicator(
@@ -742,16 +827,16 @@ class _ClubScreenState extends State<ClubScreen> {
               ),
             ),
           ),
-          if (data.events.error != null)
-            SliverToBoxAdapter(child: _InlineError(data.events.error!))
-          else if (upcomingEvents.isEmpty)
+          if (data.upcoming.error != null)
+            SliverToBoxAdapter(child: _InlineError(data.upcoming.error!)),
+          if (upcomingEvents.isEmpty && data.upcoming.error == null)
             const SliverToBoxAdapter(
               child: _EmptyCard(
                 icon: Icons.event_available_outlined,
-                text: 'In diesem Monat steht kein weiterer Termin an.',
+                text: 'Aktuell ist kein weiterer Vereinstermin geplant.',
               ),
             )
-          else
+          else if (upcomingEvents.isNotEmpty)
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               sliver: SliverToBoxAdapter(
@@ -763,6 +848,8 @@ class _ClubScreenState extends State<ClubScreen> {
             ),
           if (_calendarExpanded) ...[
             const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            if (data.events.error != null)
+              SliverToBoxAdapter(child: _InlineError(data.events.error!)),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               sliver: SliverToBoxAdapter(
@@ -788,7 +875,7 @@ class _ClubScreenState extends State<ClubScreen> {
                       : 'An diesem Tag gibt es keine Veranstaltung.',
                 ),
               )
-            else if (data.events.error == null)
+            else if (selectedEvents.isNotEmpty)
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 sliver: SliverList.separated(
@@ -2403,6 +2490,7 @@ class _CreateBoardPostDialogState extends State<_CreateBoardPostDialog> {
 class _ClubPageData {
   const _ClubPageData({
     required this.events,
+    required this.upcoming,
     required this.poll,
     required this.board,
     required this.notifications,
@@ -2410,6 +2498,7 @@ class _ClubPageData {
 
   factory _ClubPageData.empty() => const _ClubPageData(
     events: _Section<List<_ClubEvent>>(data: <_ClubEvent>[]),
+    upcoming: _Section<List<_ClubEvent>>(data: <_ClubEvent>[]),
     poll: _Section<_ClubPoll?>(data: null),
     board: _Section<_BoardData>(
       data: _BoardData(posts: <_BoardPost>[], authorNames: <String, String>{}),
@@ -2420,17 +2509,20 @@ class _ClubPageData {
   );
 
   final _Section<List<_ClubEvent>> events;
+  final _Section<List<_ClubEvent>> upcoming;
   final _Section<_ClubPoll?> poll;
   final _Section<_BoardData> board;
   final _Section<_NotificationPreferences> notifications;
 
   _ClubPageData copyWith({
     _Section<List<_ClubEvent>>? events,
+    _Section<List<_ClubEvent>>? upcoming,
     _Section<_ClubPoll?>? poll,
     _Section<_BoardData>? board,
     _Section<_NotificationPreferences>? notifications,
   }) => _ClubPageData(
     events: events ?? this.events,
+    upcoming: upcoming ?? this.upcoming,
     poll: poll ?? this.poll,
     board: board ?? this.board,
     notifications: notifications ?? this.notifications,
@@ -2445,6 +2537,44 @@ class _Section<T> {
 }
 
 class _ClubEvent {
+  factory _ClubEvent.fromCache(Map<String, dynamic> row) => _ClubEvent(
+    id: row['id'] as String,
+    title: row['title'] as String,
+    description: row['description'] as String,
+    type: row['type'] as String,
+    location: row['location'] as String,
+    startsAt: DateTime.parse(row['startsAt'] as String),
+    endsAt: row['endsAt'] == null
+        ? null
+        : DateTime.parse(row['endsAt'] as String),
+    registrationDeadline: row['deadline'] == null
+        ? null
+        : DateTime.parse(row['deadline'] as String),
+    participantLimit: row['limit'] as int?,
+    helperSlots: row['helperSlots'] as int,
+    attendingCount: row['attendingCount'] as int,
+    helperCount: row['helperCount'] as int,
+    ownStatus: row['ownStatus'] as String?,
+    isHelper: row['isHelper'] as bool,
+  );
+
+  Map<String, dynamic> toCache() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'type': type,
+    'location': location,
+    'startsAt': startsAt.toIso8601String(),
+    'endsAt': endsAt?.toIso8601String(),
+    'deadline': registrationDeadline?.toIso8601String(),
+    'limit': participantLimit,
+    'helperSlots': helperSlots,
+    'attendingCount': attendingCount,
+    'helperCount': helperCount,
+    'ownStatus': ownStatus,
+    'isHelper': isHelper,
+  };
+
   const _ClubEvent({
     required this.id,
     required this.title,

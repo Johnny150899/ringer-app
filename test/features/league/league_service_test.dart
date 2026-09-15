@@ -9,6 +9,33 @@ import 'package:ringer_app/features/matches/domain/models/team_match.dart';
 void main() {
   group('LeagueService', () {
     test(
+      'reading cached page never requests the current season or leagues',
+      () async {
+        final cache = _MemoryLeagueCache();
+        const config = LeagueTeamConfig(
+          season: 2026,
+          teamIndex: 1,
+          leagueId: 1227,
+          teamId: 13215,
+          label: '1. Mannschaft',
+        );
+        await cache.saveOverview(
+          config,
+          LeagueOverview(
+            standings: const [],
+            matches: const [],
+            teamId: config.teamId,
+          ),
+        );
+        final api = _FakeLigaDbService();
+        final service = LeagueService(ligaDbService: api, cacheStore: cache);
+        final page = await service.readCachedPage(season: 2026);
+        expect(page?.isCached, isTrue);
+        expect(api.getCurrentSeasonCalls, 0);
+        expect(api.getLeaguesCalls, 0);
+      },
+    );
+    test(
       'erkennt eine neue Saison und beide Mannschaften automatisch',
       () async {
         final api = _FakeLigaDbService(currentSeason: 2027);

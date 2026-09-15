@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/constants/club_logos.dart';
+import '../core/data/offline_cache.dart';
 import '../features/auth/data/services/user_access_service.dart';
 import '../features/matches/data/services/ligadb_service.dart';
 import '../features/matches/domain/models/team_match.dart';
@@ -48,6 +49,11 @@ class _StartupScreenState extends State<StartupScreen> {
       ]);
       await Future.any<void>([
         prefetch,
+        () async {
+          if (await OfflineCache().read('home.matches.2026.0') == null) {
+            await prefetch;
+          }
+        }(),
         Future<void>.delayed(_maximumPrefetchWait),
       ]);
       if (mounted) setState(() => _ready = true);

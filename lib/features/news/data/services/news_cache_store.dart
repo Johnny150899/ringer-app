@@ -25,19 +25,27 @@ class NewsCacheStore {
   Future<void> save({
     required List<ClubNewsPost> clubPosts,
     required List<InstagramPost> instagramPosts,
-  }) => _preferences.setString(
-    _key,
-    jsonEncode({
-      'saved_at': DateTime.now().toUtc().toIso8601String(),
-      'club_posts': clubPosts.map((post) => post.toJson()).toList(),
-      'instagram_posts': instagramPosts.map((post) => post.toJson()).toList(),
-    }),
-  );
+  }) async {
+    try {
+      await _preferences.setString(
+        _key,
+        jsonEncode({
+          'saved_at': DateTime.now().toUtc().toIso8601String(),
+          'club_posts': clubPosts.map((post) => post.toJson()).toList(),
+          'instagram_posts': instagramPosts
+              .map((post) => post.toJson())
+              .toList(),
+        }),
+      );
+    } catch (_) {
+      /* Storage is optional. */
+    }
+  }
 
   Future<CachedNewsContent?> read() async {
-    final raw = await _preferences.getString(_key);
-    if (raw == null) return null;
     try {
+      final raw = await _preferences.getString(_key);
+      if (raw == null) return null;
       final json = Map<String, dynamic>.from(jsonDecode(raw) as Map);
       final clubPosts = (json['club_posts'] as List<dynamic>)
           .map((item) {

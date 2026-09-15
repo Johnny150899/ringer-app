@@ -30,9 +30,9 @@ class SharedPreferencesLeagueCacheStore implements LeagueCacheStore {
 
   @override
   Future<LeagueOverview?> readOverview(LeagueTeamConfig config) async {
-    final raw = await _preferences.getString(_overviewKey(config));
-    if (raw == null) return null;
     try {
+      final raw = await _preferences.getString(_overviewKey(config));
+      if (raw == null) return null;
       final json = Map<String, dynamic>.from(jsonDecode(raw) as Map);
       return LeagueOverview.fromJson(
         Map<String, dynamic>.from(json['data'] as Map),
@@ -51,9 +51,9 @@ class SharedPreferencesLeagueCacheStore implements LeagueCacheStore {
 
   @override
   Future<List<LeagueTeamConfig>?> readConfigs(int season) async {
-    final raw = await _preferences.getString('league.configs.$season');
-    if (raw == null) return null;
     try {
+      final raw = await _preferences.getString('league.configs.$season');
+      if (raw == null) return null;
       return (jsonDecode(raw) as List<dynamic>)
           .map(
             (item) => LeagueTeamConfig.fromJson(

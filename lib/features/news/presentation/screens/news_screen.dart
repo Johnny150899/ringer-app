@@ -49,17 +49,28 @@ class _NewsScreenState extends State<NewsScreen> {
     List<ClubNewsPost> clubPosts = _lastContent?.clubPosts ?? const [];
     List<InstagramPost> instagramPosts =
         _lastContent?.instagramPosts ?? const [];
-    try {
-      clubPosts = await ClubNewsService(client).loadPosts();
-    } catch (_) {
-      // Instagram-News bleiben sichtbar, solange Vereinsnews nicht laden.
-    }
-    try {
-      instagramPosts = await InstagramNewsService(client).loadPosts();
-    } catch (_) {
-      // Vereinsbeiträge bleiben auch bei einem Instagram-Fehler sichtbar.
-    }
-    return _NewsContent(clubPosts: clubPosts, instagramPosts: instagramPosts);
+    var failed = false;
+    await Future.wait<void>([
+      () async {
+        try {
+          clubPosts = await ClubNewsService(client).loadPosts();
+        } catch (_) {
+          failed = true;
+        }
+      }(),
+      () async {
+        try {
+          instagramPosts = await InstagramNewsService(client).loadPosts();
+        } catch (_) {
+          failed = true;
+        }
+      }(),
+    ]);
+    return _NewsContent(
+      clubPosts: clubPosts,
+      instagramPosts: instagramPosts,
+      outdated: failed,
+    );
   }
 
   Future<_NewsContent> _loadInitial() async {
@@ -68,6 +79,7 @@ class _NewsScreenState extends State<NewsScreen> {
       final content = _NewsContent(
         clubPosts: cached.clubPosts,
         instagramPosts: cached.instagramPosts,
+        outdated: true,
       );
       _lastContent = content;
       unawaited(Future<void>.microtask(_refresh));
@@ -160,6 +172,21 @@ class _NewsScreenState extends State<NewsScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              if (content.outdated)
+                SliverToBoxAdapter(
+                  child: TextButton(
+                    onPressed: _isUpdating ? null : _refresh,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      disabledForegroundColor: Colors.white70,
+                    ),
+                    child: Text(
+                      _isUpdating
+                          ? 'Gespeicherte News · wird aktualisiert …'
+                          : 'News nicht vollständig aktualisiert · Erneut versuchen',
+                    ),
+                  ),
+                ),
               if (_isUpdating)
                 const SliverToBoxAdapter(
                   child: LinearProgressIndicator(
@@ -231,10 +258,12 @@ class _NewsScreenState extends State<NewsScreen> {
 
 class _NewsContent {
   const _NewsContent({
+    this.outdated = false,
     this.clubPosts = const [],
     this.instagramPosts = const [],
   });
 
   final List<ClubNewsPost> clubPosts;
   final List<InstagramPost> instagramPosts;
+  final bool outdated;
 }
