@@ -24,7 +24,7 @@ class _AccountScreenState extends State<_AccountScreen> {
     try {
       return await profiles
           .select(
-            'first_name, last_name, role, membership_status, referral_code',
+            'first_name, last_name, role, is_trainer, is_organization, membership_status, referral_code',
           )
           .eq('id', widget.user.id)
           .maybeSingle();
@@ -39,7 +39,7 @@ class _AccountScreenState extends State<_AccountScreen> {
 
   Future<void> _requestMembership() async {
     try {
-      await Supabase.instance.client.rpc<void>('request_membership');
+      if (!await submitMembershipApplication(context)) return;
       if (!mounted) return;
       setState(() {
         _profile = _loadProfile();
@@ -178,8 +178,8 @@ class _AccountScreenState extends State<_AccountScreen> {
                 profile?['membership_status'] as String? ?? 'not_requested';
             final approved = status == 'approved';
             final isFan = role == 'fan';
-            final isTrainer = role == 'trainer';
-            final isOrganization = role == 'organization';
+            final isTrainer = hasTrainerTask(profile ?? {});
+            final isOrganization = hasOrganizationTask(profile ?? {});
             final isAdmin = role == 'admin';
             final hasMembership = approved && !isFan;
             final statusColor = isFan || approved
@@ -199,6 +199,25 @@ class _AccountScreenState extends State<_AccountScreen> {
             return ListView(
               padding: const EdgeInsets.all(18),
               children: [
+                if (clubTaskLabel(profile ?? {}).isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'Vereinsaufgaben: ${clubTaskLabel(profile ?? {})}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                if (profile?['membership_status'] == 'pending' ||
+                    profile?['membership_status'] == 'rejected')
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const MembershipApplicationScreen(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.assignment_outlined),
+                    label: const Text('Mein Mitgliedsantrag'),
+                  ),
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(

@@ -51,6 +51,18 @@ class MembershipBenefitsScreen extends StatelessWidget {
           _DigitalMemberCard(name: name, email: email, code: referralCode)
         else
           const _MembershipIntroCard(),
+        if (pending || profile?['membership_status'] == 'rejected')
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const MembershipApplicationScreen(),
+              ),
+            ),
+            child: const Text(
+              'Antragsstatus ansehen',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
         const SizedBox(height: 16),
         const Text(
           'Deine Möglichkeiten',
@@ -223,7 +235,7 @@ class _MembershipTabScreenState extends State<MembershipTabScreen> {
 
   Future<void> _requestMembership() async {
     try {
-      await Supabase.instance.client.rpc<void>('request_membership');
+      if (!await submitMembershipApplication(context)) return;
       if (!mounted) return;
       setState(_reload);
       ScaffoldMessenger.of(context).showSnackBar(

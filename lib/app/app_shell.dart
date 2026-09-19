@@ -35,6 +35,9 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  final _contentNavigator = GlobalKey<NavigatorState>();
+  final _contentRoutes = _ContentRouteObserver();
+  bool _changingTab = false;
   int _selectedIndex = 0;
   final Set<int> _visitedTabs = {0};
   late bool _isAuthenticated;
@@ -42,6 +45,7 @@ class _AppShellState extends State<AppShell> {
   bool _hasMemberAccess = false;
   bool _hasClubAccess = false;
   bool _canReviewMemberships = false;
+  bool _canProcessApplications = false;
   bool _isAdmin = false;
   bool _canPublishClubNews = false;
   bool _canRespondTraining = false;
@@ -86,6 +90,7 @@ class _AppShellState extends State<AppShell> {
           _hasMemberAccess = false;
           _hasClubAccess = false;
           _canReviewMemberships = false;
+          _canProcessApplications = false;
           _isAdmin = false;
           _canPublishClubNews = false;
           _canRespondTraining = false;
@@ -103,6 +108,7 @@ class _AppShellState extends State<AppShell> {
           _hasMemberAccess = access.hasMemberAccess;
           _hasClubAccess = access.hasClubAccess;
           _canReviewMemberships = access.canReviewMemberships;
+          _canProcessApplications = access.canProcessApplications;
           _isAdmin = access.isAdmin;
           _canPublishClubNews = access.canPublishClubNews;
           _canRespondTraining = access.canRespondTraining;
@@ -119,6 +125,7 @@ class _AppShellState extends State<AppShell> {
           _hasClubAccess = false;
           _canReviewMemberships = false;
           _isAdmin = false;
+          _canProcessApplications = false;
           _canPublishClubNews = false;
           _canRespondTraining = false;
           _trainingGroups = const [];
@@ -241,9 +248,9 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _openAccount() async {
-    final didLogin = await Navigator.of(
-      context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const AccountGateScreen()));
+    final didLogin = await _contentNavigator.currentState!.push<bool>(
+      MaterialPageRoute(builder: (_) => const AccountGateScreen()),
+    );
     if (didLogin == true && mounted) {
       setState(() => _selectedIndex = 0);
     }
@@ -252,21 +259,26 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _openLegalHub() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const LegalHubScreen()));
+    _contentNavigator.currentState!.push(
+      MaterialPageRoute<void>(builder: (_) => const LegalHubScreen()),
+    );
   }
 
   Future<void> _openMembershipRequests() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const MembershipRequestsScreen()),
+    await _contentNavigator.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => MembershipRequestsScreen(
+          memberships: _canProcessApplications,
+          trials: _canReviewMemberships,
+        ),
+      ),
     );
     _userAccessService?.invalidate();
     await _refreshPermissions(force: true);
   }
 
   Future<void> _openUserManagement() async {
-    await Navigator.of(context).push(
+    await _contentNavigator.currentState!.push(
       MaterialPageRoute<void>(
         builder: (_) => UserManagementScreen(canManageRoles: _isAdmin),
       ),
@@ -307,115 +319,151 @@ class _AppShellState extends State<AppShell> {
             )
           : const SizedBox.shrink(),
     ];
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBody: true,
-      body: DecoratedBox(
-        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              _AppHeader(
-                title: const [
-                  'Home',
-                  'Training',
-                  'News',
-                  'Liga',
-                  'Verein',
-                ][_selectedIndex],
-                isAuthenticated: _isAuthenticated,
-                canReviewMemberships: _canReviewMemberships,
-                canManageUsers: _canReviewMemberships,
-                pendingMembershipCount: _pendingMembershipCount,
-                onAccountTap: _openAccount,
-                onLegalTap: _openLegalHub,
-                onMembershipRequestsTap: _openMembershipRequests,
-                onUserManagementTap: _openUserManagement,
-              ),
-              Expanded(
-                child: IndexedStack(index: _selectedIndex, children: screens),
+    return DecoratedBox(
+      decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBody: true,
+        body: NavigatorPopHandler<Object?>(
+          onPopWithResult: (result) =>
+              _contentNavigator.currentState!.maybePop(result),
+          child: Navigator(
+            key: _contentNavigator,
+            observers: [_contentRoutes],
+            onDidRemovePage: (_) {},
+            pages: [
+              MaterialPage<void>(
+                key: const ValueKey('main-tabs'),
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Column(
+                      children: [
+                        _AppHeader(
+                          title: const [
+                            'Home',
+                            'Training',
+                            'News',
+                            'Liga',
+                            'Verein',
+                          ][_selectedIndex],
+                          isAuthenticated: _isAuthenticated,
+                          canReviewMemberships:
+                              _canReviewMemberships || _canProcessApplications,
+                          canManageUsers: _canReviewMemberships,
+                          pendingMembershipCount: _pendingMembershipCount,
+                          onAccountTap: _openAccount,
+                          onLegalTap: _openLegalHub,
+                          onMembershipRequestsTap: _openMembershipRequests,
+                          onUserManagementTap: _openUserManagement,
+                        ),
+                        Expanded(
+                          child: IndexedStack(
+                            index: _selectedIndex,
+                            children: screens,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ),
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x24000000),
-                blurRadius: 24,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.navy.withValues(alpha: .70),
-                      AppColors.navigationBlue.withValues(alpha: .56),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: .18),
-                  ),
-                  borderRadius: BorderRadius.circular(24),
+        bottomNavigationBar: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x24000000),
+                  blurRadius: 24,
+                  offset: Offset(0, 10),
                 ),
-                child: Theme(
-                  data: Theme.of(context).copyWith(
-                    splashFactory: NoSplash.splashFactory,
-                    splashColor: Colors.transparent,
-                    highlightColor: Colors.transparent,
-                    hoverColor: Colors.transparent,
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.navy.withValues(alpha: .45),
+                        AppColors.navigationBlue.withValues(alpha: .32),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: .18),
+                    ),
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  child: NavigationBar(
-                    labelBehavior:
-                        NavigationDestinationLabelBehavior.alwaysHide,
-                    selectedIndex: _selectedIndex,
-                    onDestinationSelected: (index) => setState(() {
-                      _selectedIndex = index;
-                      _visitedTabs.add(index);
-                    }),
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.home_outlined),
-                        selectedIcon: _SelectedNavIcon(Icons.home_rounded),
-                        label: 'Home',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.fitness_center),
-                        selectedIcon: _SelectedNavIcon(Icons.fitness_center),
-                        label: 'Training',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.article_outlined),
-                        selectedIcon: _SelectedNavIcon(Icons.article_rounded),
-                        label: 'News',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.leaderboard_outlined),
-                        selectedIcon: _SelectedNavIcon(
-                          Icons.leaderboard_rounded,
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      splashFactory: NoSplash.splashFactory,
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      hoverColor: Colors.transparent,
+                    ),
+                    child: NavigationBar(
+                      labelBehavior:
+                          NavigationDestinationLabelBehavior.alwaysHide,
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: (index) async {
+                        if (_changingTab) return;
+                        _changingTab = true;
+                        try {
+                          final navigator = _contentNavigator.currentState!;
+                          while (navigator.canPop()) {
+                            final previous = _contentRoutes.top;
+                            if (!await navigator.maybePop() || !mounted) return;
+                            if (identical(previous, _contentRoutes.top)) return;
+                          }
+                          if (!mounted) return;
+                          setState(() {
+                            _selectedIndex = index;
+                            _visitedTabs.add(index);
+                          });
+                        } finally {
+                          _changingTab = false;
+                        }
+                      },
+                      destinations: const [
+                        NavigationDestination(
+                          icon: Icon(Icons.home_outlined),
+                          selectedIcon: _SelectedNavIcon(Icons.home_rounded),
+                          label: 'Home',
                         ),
-                        label: 'Liga',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.groups_outlined),
-                        selectedIcon: _SelectedNavIcon(Icons.groups_rounded),
-                        label: 'Verein',
-                      ),
-                    ],
+                        NavigationDestination(
+                          icon: Icon(Icons.fitness_center),
+                          selectedIcon: _SelectedNavIcon(Icons.fitness_center),
+                          label: 'Training',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.article_outlined),
+                          selectedIcon: _SelectedNavIcon(Icons.article_rounded),
+                          label: 'News',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.leaderboard_outlined),
+                          selectedIcon: _SelectedNavIcon(
+                            Icons.leaderboard_rounded,
+                          ),
+                          label: 'Liga',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.groups_outlined),
+                          selectedIcon: _SelectedNavIcon(Icons.groups_rounded),
+                          label: 'Verein',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -424,6 +472,29 @@ class _AppShellState extends State<AppShell> {
         ),
       ),
     );
+  }
+}
+
+class _ContentRouteObserver extends NavigatorObserver {
+  Route<dynamic>? top;
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    top = route;
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    top = previousRoute;
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (identical(top, route)) top = previousRoute;
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (identical(top, oldRoute)) top = newRoute;
   }
 }
 

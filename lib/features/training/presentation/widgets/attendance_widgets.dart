@@ -305,6 +305,7 @@ class _AttendanceData {
     required this.open,
     required this.declineReasons,
     required this.openCount,
+    this.available = true,
   });
 
   final List<String> accepted;
@@ -314,6 +315,7 @@ class _AttendanceData {
   final List<String>? open;
   final Map<String, String> declineReasons;
   final int openCount;
+  final bool available;
 }
 
 class _ResponseButton extends StatelessWidget {

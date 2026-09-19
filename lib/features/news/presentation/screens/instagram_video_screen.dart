@@ -248,7 +248,7 @@ Future<void> showInstagramVideo(
   await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
   try {
     if (!context.mounted) return;
-    await Navigator.of(context).push(
+    await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
         builder: (_) => InstagramVideoScreen(videoUrl: videoUrl),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -43,8 +44,15 @@ class TrainingScreen extends StatefulWidget {
   State<TrainingScreen> createState() => _TrainingScreenState();
 }
 
-class _TrainingScreenState extends State<TrainingScreen> {
+class _TrainingScreenState extends State<TrainingScreen>
+    with WidgetsBindingObserver {
+  RealtimeChannel? _attendanceChannel;
+  Timer? _attendanceDebounce;
+  Timer? _attendancePolling;
+  final _attendanceRevision = ValueNotifier<int>(0);
+  bool _foreground = true;
   bool _showMemberPreview = false;
+  bool _trainerUpcoming = true;
   String _selectedMemberGroup = 'Männer';
   late DateTime _visibleMonth;
   final Map<String, bool> _responses = {};
@@ -82,19 +90,104 @@ class _TrainingScreenState extends State<TrainingScreen> {
   @override
   void initState() {
     super.initState();
-    _showMemberPreview = widget.memberAccess;
+    _showMemberPreview = widget.memberAccess || widget.canManageSessions;
     final now = widget.nowOverride ?? DateTime.now();
     _visibleMonth = DateTime(now.year, now.month);
     _loadSchedule();
     _loadContactInfo();
+    WidgetsBinding.instance.addObserver(this);
+    _subscribeAttendance();
   }
 
   @override
   void didUpdateWidget(covariant TrainingScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.memberAccess != widget.memberAccess) {
-      _showMemberPreview = widget.memberAccess;
+    if (oldWidget.supabaseClient != widget.supabaseClient ||
+        oldWidget.memberAccess != widget.memberAccess ||
+        oldWidget.canManageSessions != widget.canManageSessions) {
+      final channel = _attendanceChannel;
+      if (channel != null) {
+        unawaited(oldWidget.supabaseClient!.removeChannel(channel));
+      }
+      _attendanceChannel = null;
+      _attendancePolling?.cancel();
+      _attendanceDebounce?.cancel();
+      _subscribeAttendance();
     }
+    if (oldWidget.memberAccess != widget.memberAccess ||
+        oldWidget.canManageSessions != widget.canManageSessions) {
+      _showMemberPreview = widget.memberAccess || widget.canManageSessions;
+    }
+  }
+
+  void _subscribeAttendance() {
+    final client = widget.supabaseClient;
+    if (client == null ||
+        client.auth.currentUser == null ||
+        !(widget.memberAccess || widget.canManageSessions)) {
+      return;
+    }
+    _attendanceChannel = client
+        .channel('training-attendance-${identityHashCode(this)}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'weekly_training_responses',
+          callback: (_) => _queueAttendanceRefresh(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'profile_training_groups',
+          callback: (_) => _queueAttendanceRefresh(),
+        )
+        .subscribe((status, error) {
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            _queueAttendanceRefresh();
+          }
+        });
+    // Also recover missed events or a server without Realtime publication.
+    _attendancePolling = Timer.periodic(const Duration(seconds: 15), (_) {
+      _queueAttendanceRefresh();
+    });
+  }
+
+  void _queueAttendanceRefresh() {
+    if (!mounted || !_foreground || !TickerMode.valuesOf(context).enabled) return;
+    _attendanceDebounce?.cancel();
+    _attendanceDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted || !_foreground) return;
+      setState(() => _attendanceFutures.clear());
+      _attendanceRevision.value++;
+      unawaited(_refreshOwnAttendance());
+    });
+  }
+
+  Future<void> _refreshOwnAttendance() async {
+    try {
+      await _loadOwnResponses();
+    } catch (_) {
+      /* Retry after reconnect. */
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    if (_foreground) _queueAttendanceRefresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _attendanceDebounce?.cancel();
+    _attendancePolling?.cancel();
+    final channel = _attendanceChannel;
+    if (channel != null) {
+      unawaited(widget.supabaseClient!.removeChannel(channel));
+    }
+    _attendanceRevision.dispose();
+    super.dispose();
   }
 
   List<_DatedTrainingSession> _sessionsForVisibleMonth() {
@@ -115,6 +208,33 @@ class _TrainingScreenState extends State<TrainingScreen> {
       }
     }
     return sessions;
+  }
+
+  List<_DatedTrainingSession> _upcomingSessions() {
+    final now = widget.nowOverride ?? DateTime.now();
+    final result = <_DatedTrainingSession>[];
+    for (var offset = 0; offset < 7; offset++) {
+      final date = DateTime(
+        now.year,
+        now.month,
+        now.day - (now.weekday - DateTime.monday) + offset,
+      );
+      for (final session in _sessions) {
+        if (session.group == _selectedMemberGroup &&
+            session.weekday == date.weekday) {
+          result.add(_DatedTrainingSession(session, date));
+        }
+      }
+    }
+    result.sort((a, b) {
+      final date = a.date.compareTo(b.date);
+      return date != 0
+          ? date
+          : (a.session.startHour * 60 + a.session.startMinute).compareTo(
+              b.session.startHour * 60 + b.session.startMinute,
+            );
+    });
+    return result;
   }
 
   void _changeMonth(int offset) {
@@ -271,10 +391,21 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final client = widget.supabaseClient;
     final user = client?.auth.currentUser;
     if (client == null || user == null) return;
+    final now = widget.nowOverride ?? DateTime.now();
+    final monthStart = DateTime(_visibleMonth.year, _visibleMonth.month);
+    final today = DateTime(
+      now.year,
+      now.month,
+      now.day - (now.weekday - DateTime.monday),
+    );
+    final first = today.isBefore(monthStart) ? today : monthStart;
     final firstDay =
-        '${_visibleMonth.year.toString().padLeft(4, '0')}-'
-        '${_visibleMonth.month.toString().padLeft(2, '0')}-01';
-    final last = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 0);
+        '${first.year.toString().padLeft(4, '0')}-'
+        '${first.month.toString().padLeft(2, '0')}-'
+        '${first.day.toString().padLeft(2, '0')}';
+    final monthEnd = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 0);
+    final weekEnd = DateTime(now.year, now.month, now.day + 6);
+    final last = weekEnd.isAfter(monthEnd) ? weekEnd : monthEnd;
     final lastDay =
         '${last.year.toString().padLeft(4, '0')}-'
         '${last.month.toString().padLeft(2, '0')}-'
@@ -517,6 +648,16 @@ class _TrainingScreenState extends State<TrainingScreen> {
     DateTime date,
   ) async {
     final client = widget.supabaseClient;
+    if (client != null && session.id == null) {
+      return const _AttendanceData(
+        accepted: [],
+        declined: [],
+        open: [],
+        declineReasons: {},
+        openCount: 0,
+        available: false,
+      );
+    }
     if (client == null || session.id == null) {
       final key = '${session.group}-${date.year}-${date.month}-${date.day}';
       final response = _responses[key];
@@ -602,7 +743,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
     TrainingSession session,
     DateTime date,
   ) {
-    final key = '${session.id}-${date.year}-${date.month}-${date.day}';
+    final key =
+        '${session.id ?? session.group}-${date.year}-${date.month}-${date.day}';
     return _attendanceFutures.putIfAbsent(
       key,
       () => _loadAttendance(session, date),
@@ -611,7 +753,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   void _invalidateAttendance(TrainingSession session, DateTime date) {
     _attendanceFutures.remove(
-      '${session.id}-${date.year}-${date.month}-${date.day}',
+      '${session.id ?? session.group}-${date.year}-${date.month}-${date.day}',
     );
   }
 
@@ -621,20 +763,54 @@ class _TrainingScreenState extends State<TrainingScreen> {
     bool? response,
     String? declineReason,
   ) async {
-    final attendance = await _attendanceFor(session, date);
+    if (widget.supabaseClient != null && session.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Trainingsplan noch nicht geladen. Bitte kurz warten oder erneut versuchen.',
+          ),
+        ),
+      );
+      await _loadSchedule();
+      return;
+    }
+    late final _AttendanceData attendance;
+    try {
+      _invalidateAttendance(session, date);
+      attendance = await _attendanceFor(session, date);
+    } catch (_) {
+      _invalidateAttendance(session, date);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Teilnahmen konnten nicht geladen werden. Bitte erneut versuchen.',
+          ),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
+    setState(() {});
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _AttendanceSheet(
-        session: session,
-        date: date,
-        response: response,
-        declineReason: declineReason,
-        attendance: attendance,
-        showDeclineReasons: widget.canManageSessions,
+      builder: (context) => ValueListenableBuilder<int>(
+        valueListenable: _attendanceRevision,
+        builder: (context, revision, _) => FutureBuilder<_AttendanceData>(
+          future: _attendanceFor(session, date),
+          initialData: attendance,
+          builder: (context, snapshot) => _AttendanceSheet(
+            session: session,
+            date: date,
+            response: response,
+            declineReason: declineReason,
+            attendance: snapshot.data ?? attendance,
+            showDeclineReasons: widget.canManageSessions,
+          ),
+        ),
       ),
     );
   }
@@ -686,8 +862,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final monthlySessions = _sessionsForVisibleMonth();
-    final canSwitchView = widget.isAdmin || widget.memberAccess;
+    final upcoming = _trainerUpcoming;
+    final monthlySessions = upcoming
+        ? _upcomingSessions()
+        : _sessionsForVisibleMonth();
+    final canSwitchView =
+        widget.isAdmin || widget.memberAccess || widget.canManageSessions;
     final showMemberView = canSwitchView && _showMemberPreview;
 
     return ListView(
@@ -730,17 +910,53 @@ class _TrainingScreenState extends State<TrainingScreen> {
         ),
         const SizedBox(height: 12),
         if (showMemberView) ...[
-          _MonthSelector(
-            label: '${_months[_visibleMonth.month - 1]} ${_visibleMonth.year}',
-            onPrevious: () => _changeMonth(-1),
-            onNext: () => _changeMonth(1),
+          SegmentedButton<bool>(
+            style: ButtonStyle(
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? AppColors.navy
+                    : Colors.white,
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? Colors.white
+                    : Colors.transparent,
+              ),
+              side: WidgetStatePropertyAll(
+                BorderSide(color: Colors.white.withValues(alpha: .3)),
+              ),
+            ),
+            segments: const [
+              ButtonSegment(value: true, label: Text('Diese Woche')),
+              ButtonSegment(value: false, label: Text('Monat')),
+            ],
+            selected: {_trainerUpcoming},
+            onSelectionChanged: (selection) => setState(() {
+              _trainerUpcoming = selection.single;
+            }),
           ),
+          const SizedBox(height: 12),
+          if (!upcoming)
+            _MonthSelector(
+              label:
+                  '${_months[_visibleMonth.month - 1]} ${_visibleMonth.year}',
+              onPrevious: () => _changeMonth(-1),
+              onNext: () => _changeMonth(1),
+            ),
           const SizedBox(height: 10),
           _MemberGroupFilter(
             selected: _selectedMemberGroup,
             onSelected: (group) => setState(() => _selectedMemberGroup = group),
           ),
           const SizedBox(height: 12),
+          if (monthlySessions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Text(
+                'Keine Trainings in diesem Zeitraum.',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
           ...monthlySessions.map((entry) {
             final session = entry.session;
             final date = entry.date;
@@ -752,11 +968,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
               response: _responses[key],
               attendance: _attendanceFor(session, date),
               occurrence: _occurrenceOverrides[_occurrenceKey(session, date)],
-              canManage: widget.canManageSessions,
+              canManage: widget.canManageSessions && session.id != null,
               onManage: () => _manageOccurrence(session, date),
               canRespond:
-                  widget.supabaseClient == null ||
-                  (widget.canRespond &&
+                  (widget.supabaseClient == null &&
+                      !widget.canManageSessions) ||
+                  (session.id != null &&
+                      widget.canRespond &&
                       widget.trainingGroups.contains(session.group)),
               onAccept: () => _saveResponse(session, date, true),
               onDecline: (reason) =>

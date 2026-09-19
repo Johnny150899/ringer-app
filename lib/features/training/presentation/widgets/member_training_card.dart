@@ -212,7 +212,11 @@ class _MemberTrainingCard extends StatelessWidget {
                           builder: (context, snapshot) {
                             final data = snapshot.data;
                             return Text(
-                              data == null
+                              snapshot.hasError
+                                  ? 'Teilnahmen nicht verfügbar · Zum Wiederholen tippen'
+                                  : data?.available == false
+                                  ? 'Trainingsplan noch nicht geladen · Erneut versuchen'
+                                  : data == null
                                   ? 'Teilnahmen laden …'
                                   : '${data.accepted.length} Zusagen · '
                                         '${data.declined.length} Absagen · '

@@ -13,7 +13,15 @@ import '../../domain/models/league_team_config.dart';
 import '../widgets/league_navigation.dart';
 
 class LeagueScreen extends StatefulWidget {
-  const LeagueScreen({super.key, this.nowOverride, this.service});
+  const LeagueScreen({
+    super.key,
+    this.nowOverride,
+    this.service,
+    this.initialSeason,
+    this.initialTeamIndex = 1,
+  });
+  final int? initialSeason;
+  final int initialTeamIndex;
 
   final DateTime? nowOverride;
   final LeagueService? service;
@@ -37,6 +45,8 @@ class _LeagueScreenState extends State<LeagueScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedSeason = widget.initialSeason;
+    _selectedTeamIndex = widget.initialTeamIndex;
     _service = widget.service ?? LeagueService();
     _page = _loadInitial();
   }

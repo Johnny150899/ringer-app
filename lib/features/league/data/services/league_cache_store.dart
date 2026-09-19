@@ -14,9 +14,11 @@ abstract interface class LeagueCacheStore {
 
 class SharedPreferencesLeagueCacheStore implements LeagueCacheStore {
   SharedPreferencesLeagueCacheStore({SharedPreferencesAsync? preferences})
-    : _preferences = preferences ?? SharedPreferencesAsync();
+    : _providedPreferences = preferences;
 
-  final SharedPreferencesAsync _preferences;
+  final SharedPreferencesAsync? _providedPreferences;
+  late final SharedPreferencesAsync _preferences =
+      _providedPreferences ?? SharedPreferencesAsync();
 
   @override
   Future<void> saveOverview(LeagueTeamConfig config, LeagueOverview overview) =>

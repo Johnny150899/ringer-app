@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/app_theme.dart';
+import 'user_detail_screen.dart';
+import '../../domain/club_tasks.dart';
 
 part '../widgets/user_management_widgets.dart';
 
 class UserManagementScreen extends StatefulWidget {
-  const UserManagementScreen({super.key, this.canManageRoles = false});
+  const UserManagementScreen({
+    super.key,
+    this.canManageRoles = false,
+    this.client,
+  });
+  final SupabaseClient? client;
 
   final bool canManageRoles;
 
@@ -15,6 +22,7 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
+  late final client = widget.client ?? Supabase.instance.client;
   static const _roles = [
     'all',
     'fan',
@@ -27,7 +35,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   late Future<List<Map<String, dynamic>>> _profiles;
   final _searchController = TextEditingController();
   String _roleFilter = 'all';
-  String? _processingUserId;
 
   @override
   void initState() {
@@ -42,10 +49,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _loadProfiles() async {
-    final rows = await Supabase.instance.client
+    final rows = await client
         .from('profiles')
         .select(
-          'id, first_name, last_name, role, membership_status, created_at, '
+          'id, first_name, last_name, role, is_trainer, is_organization, membership_status, created_at, '
           'can_respond_training, training_group, '
           'profile_training_groups(group_name)',
         )
@@ -61,130 +68,31 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     });
   }
 
-  Future<void> _changeRole(Map<String, dynamic> profile, String newRole) async {
-    final oldRole = profile['role'] as String? ?? 'fan';
-    if (oldRole == newRole) return;
-    final userId = profile['id'] as String;
-    final name = _displayName(profile);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.manage_accounts_rounded, color: AppColors.red),
-        title: const Text('Rolle ändern?'),
-        content: Text(
-          '$name wird von „${_roleLabel(oldRole)}“ zu '
-          '„${_roleLabel(newRole)}“ geändert.',
-          textAlign: TextAlign.center,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Abbrechen'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Ändern'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _processingUserId = userId);
-    try {
-      await Supabase.instance.client.rpc<void>(
-        'set_user_role',
-        params: {'target_user_id': userId, 'new_role': newRole},
-      );
-      if (!mounted) return;
-      _reload();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$name ist jetzt ${_roleLabel(newRole)}.')),
-      );
-    } on PostgrestException catch (error) {
-      if (!mounted) return;
-      final message = error.message.contains('cannot_change_own_role')
-          ? 'Deine eigene Admin-Rolle kann hier nicht geändert werden.'
-          : 'Rolle konnte nicht geändert werden: ${error.message}';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } finally {
-      if (mounted) setState(() => _processingUserId = null);
-    }
-  }
-
-  Future<void> _configureTraining(Map<String, dynamic> profile) async {
-    final existing = List<Map<String, dynamic>>.from(
-      profile['profile_training_groups'] as List? ?? const [],
-    );
-    final groups = existing.map((row) => row['group_name'] as String).toSet();
-    final save = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          icon: const Icon(Icons.sports_kabaddi_rounded, color: AppColors.red),
-          title: const Text('Trainingsgruppen'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: ['Männer', 'Jugend', 'Bambinis']
-                .map(
-                  (group) => CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(group),
-                    subtitle: const Text('Darf für diese Gruppe zu-/absagen'),
-                    value: groups.contains(group),
-                    onChanged: (selected) => setDialogState(() {
-                      if (selected == true) {
-                        groups.add(group);
-                      } else {
-                        groups.remove(group);
-                      }
-                    }),
-                  ),
-                )
-                .toList(growable: false),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Speichern'),
-            ),
-          ],
+  Future<void> _openPerson(Map<String, dynamic> profile) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => UserDetailScreen(
+          userId: profile['id'] as String,
+          canManageRoles: widget.canManageRoles,
+          client: client,
         ),
       ),
     );
-    if (save != true || !mounted) return;
-    final userId = profile['id'] as String;
-    setState(() => _processingUserId = userId);
-    try {
-      await Supabase.instance.client.rpc<void>(
-        'set_training_groups',
-        params: {
-          'target_user_id': userId,
-          'assigned_groups': groups.toList(growable: false),
-        },
-      );
-      if (mounted) _reload();
-    } on PostgrestException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Zuordnung nicht möglich: ${error.message}')),
-      );
-    } finally {
-      if (mounted) setState(() => _processingUserId = null);
-    }
+    if (mounted) _reload();
   }
 
   List<Map<String, dynamic>> _filtered(List<Map<String, dynamic>> profiles) {
     final query = _searchController.text.trim().toLowerCase();
     return profiles.where((profile) {
       final matchesRole =
-          _roleFilter == 'all' || profile['role'] == _roleFilter;
+          _roleFilter == 'all' ||
+          (_roleFilter == 'trainer'
+              ? hasTrainerTask(profile)
+              : _roleFilter == 'organization'
+              ? hasOrganizationTask(profile)
+              : _roleFilter == 'member'
+              ? profile['membership_status'] == 'approved'
+              : profile['role'] == _roleFilter);
       final matchesQuery =
           query.isEmpty || _displayName(profile).toLowerCase().contains(query);
       return matchesRole && matchesQuery;
@@ -205,14 +113,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     'organization' => 'Organisation',
     'admin' => 'Admin',
     _ => 'Alle',
-  };
-
-  static Color _roleColor(String role) => switch (role) {
-    'admin' => AppColors.red,
-    'trainer' => const Color(0xFF7154B8),
-    'organization' => const Color(0xFFB45309),
-    'member' => const Color(0xFF168A5B),
-    _ => const Color(0xFF64748B),
   };
 
   @override
@@ -311,13 +211,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 const SizedBox(height: 9),
                             itemBuilder: (context, index) => _ProfileCard(
                               profile: profiles[index],
-                              processing:
-                                  _processingUserId == profiles[index]['id'],
-                              onRoleChanged: (role) =>
-                                  _changeRole(profiles[index], role),
-                              onConfigureTraining: () =>
-                                  _configureTraining(profiles[index]),
-                              canManageRoles: widget.canManageRoles,
+                              onTap: () => _openPerson(profiles[index]),
                             ),
                           ),
                         ),

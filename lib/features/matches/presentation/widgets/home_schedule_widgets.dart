@@ -71,7 +71,14 @@ class _ScheduleItem extends StatelessWidget {
 }
 
 class _NoUpcomingMatches extends StatelessWidget {
-  const _NoUpcomingMatches();
+  const _NoUpcomingMatches({
+    this.seasonCompleted = false,
+    required this.season,
+    required this.onOpenTable,
+  });
+  final bool seasonCompleted;
+  final int season;
+  final VoidCallback onOpenTable;
 
   @override
   Widget build(BuildContext context) {
@@ -82,17 +89,43 @@ class _NoUpcomingMatches extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white24),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.event_available_rounded, color: Colors.white),
-          SizedBox(width: 10),
+          const Icon(Icons.event_available_rounded, color: Colors.white),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Aktuell ist kein weiterer Kampf geplant.',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (seasonCompleted) ...[
+                  Text(
+                    'Saison $season abgeschlossen',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                Text(
+                  seasonCompleted
+                      ? 'Im September geht’s wieder auf die Matte. Sobald die neuen Kampftermine feststehen, findest du sie hier.'
+                      : 'Aktuell ist kein weiterer Kampf geplant.',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (seasonCompleted) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: onOpenTable,
+                    icon: const Icon(Icons.leaderboard_outlined),
+                    label: const Text('Zur Saisontabelle'),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

@@ -9,6 +9,7 @@ import '../../../../core/widgets/app_glass_surface.dart';
 import '../../data/services/ligadb_service.dart';
 import '../../domain/models/team_match.dart';
 import 'match_detail_screen.dart';
+import '../../../league/presentation/screens/league_screen.dart';
 
 part '../widgets/home_header_widgets.dart';
 part '../widgets/home_match_cards.dart';
@@ -282,6 +283,17 @@ class _HomeScreenState extends State<HomeScreen> {
               final nextMatch = upcomingMatches.isEmpty
                   ? null
                   : upcomingMatches.first;
+              final seasonCompleted =
+                  !state.cached &&
+                  state.error == null &&
+                  !state.updating &&
+                  pastMatches.isNotEmpty &&
+                  matches.every(
+                    (match) =>
+                        _isPast(match, now) &&
+                        num.tryParse('${match['PunkteHeimWertung']}') != null &&
+                        num.tryParse('${match['PunkteGastWertung']}') != null,
+                  );
 
               return RefreshIndicator(
                 onRefresh: state.refresh,
@@ -321,7 +333,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ] else ...[
                       const SizedBox(height: 18),
-                      const _NoUpcomingMatches(),
+                      _NoUpcomingMatches(
+                        season: 2026,
+                        onOpenTable: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => Scaffold(
+                              backgroundColor: AppColors.navy,
+                              appBar: AppBar(
+                                title: const Text('Saisontabelle 2026'),
+                              ),
+                              body: LeagueScreen(
+                                initialSeason: 2026,
+                                initialTeamIndex: _selectedTeam + 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                        seasonCompleted: seasonCompleted,
+                      ),
                     ],
                     if (upcomingMatches.length > 1) ...[
                       const SizedBox(height: 28),
@@ -344,10 +373,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                     if (pastMatches.isNotEmpty) ...[
                       const SizedBox(height: 28),
-                      const _SectionTitle(title: 'Letzte Ergebnisse'),
+                      _SectionTitle(
+                        title: seasonCompleted
+                            ? 'Letztes Ergebnis'
+                            : 'Letzte Ergebnisse',
+                      ),
                       const SizedBox(height: 12),
                       ...pastMatches
-                          .take(5)
+                          .take(seasonCompleted ? 1 : 5)
                           .map(
                             (match) => _MatchCard(
                               homeName: _shortName(_homeName(match)),
